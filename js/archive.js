@@ -164,7 +164,7 @@ function passes(book) {
     const blob = (book.title + book.author).toLowerCase().replace(/\s+/g, "");
     if (!blob.includes(q)) return false;
   }
-  if (onlyEl.checked) {
+  if (onlyEl.getAttribute("aria-pressed") === "true") {
     const lib = currentLib();
     if (lib === "both") {
       if (book.snu.s !== "avail" && book.pt.s !== "avail") return false;
@@ -173,11 +173,83 @@ function passes(book) {
   return true;
 }
 
+function relLum(rgb) {
+  const f = (c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = rgb.map(f);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+const CREAM_L = relLum([246, 237, 217]);
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const hi = Math.max(r, g, b);
+  const lo = Math.min(r, g, b);
+  const light = (hi + lo) / 2;
+  if (hi === lo) return [0, 0, light];
+  const d = hi - lo;
+  const sat = light > 0.5 ? d / (2 - hi - lo) : d / (hi + lo);
+  let hue;
+  if (hi === r) hue = ((g - b) / d) % 6;
+  else if (hi === g) hue = (b - r) / d + 2;
+  else hue = (r - g) / d + 4;
+  return [hue / 6, sat, light];
+}
+
+function hslToRgb(h, s, light) {
+  const chan = (p, q, t) => {
+    t = ((t % 1) + 1) % 1;
+    let v = p;
+    if (t < 1 / 6) v = p + (q - p) * 6 * t;
+    else if (t < 1 / 2) v = q;
+    else if (t < 2 / 3) v = p + (q - p) * (2 / 3 - t) * 6;
+    return Math.round(Math.max(0, Math.min(255, v * 255)));
+  };
+  if (s === 0) {
+    const v = Math.round(light * 255);
+    return [v, v, v];
+  }
+  const q = light < 0.5 ? light * (1 + s) : light + s - light * s;
+  const p = 2 * light - q;
+  return [chan(p, q, h + 1 / 3), chan(p, q, h), chan(p, q, h - 1 / 3)];
+}
+
+function clampHex(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  let [h, s, light] = rgbToHsl((n >> 16) & 255, (n >> 8) & 255, n & 255);
+  if (s < 0.12) s = 0.12;
+  s = Math.min(s, 0.62);
+  light = Math.min(Math.max(light, 0.24), 0.42);
+  let rgb = hslToRgb(h, s, light);
+  while ((CREAM_L + 0.05) / (relLum(rgb) + 0.05) < 4.5 && light > 0.16) {
+    light -= 0.015;
+    rgb = hslToRgb(h, s, light);
+  }
+  return "#" + rgb.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+function clothFor(book) {
+  const given = book.color && /^#[0-9a-fA-F]{6}$/.test(book.color) ? book.color : null;
+  const base = given || CLOTH[hash(book.title) % CLOTH.length].bg;
+  return { bg: clampHex(base) };
+}
+
 function paintCloth(el, cloth) {
   el.style.setProperty("--cloth", cloth.bg);
-  el.style.setProperty("--edge", cloth.edge);
-  el.style.setProperty("--ink-on", cloth.ink);
-  el.style.setProperty("--shade", cloth.light ? "rgba(255,255,255,.5)" : "rgba(0,0,0,.35)");
+}
+
+function extras(b) {
+  let contents = "";
+  let color = "";
+  for (const part of b.slice(4)) {
+    if (typeof part !== "string") continue;
+    if (/^#[0-9a-fA-F]{6}$/.test(part)) color = part.toLowerCase();
+    else if (part.trim() && !contents) contents = part;
+  }
+  return { contents, color };
 }
 
 function titlePlan(title, bayPx) {
@@ -321,7 +393,7 @@ function makeSpine(book, plan) {
   btn.style.setProperty("--tilt", `${m.tilt}deg`);
   btn.style.setProperty("--gap", `${m.gap}px`);
   btn.style.setProperty("--fs", `${plan.size}px`);
-  paintCloth(btn, m.cloth);
+  paintCloth(btn, clothFor(book));
   btn.setAttribute("aria-label", ariaText(book));
   const title = document.createElement("span");
   title.className = "title";
@@ -344,14 +416,13 @@ function makeStack(group, stackW, bay) {
   wrap.style.setProperty("--sw", `${stackW}px`);
   const thick = thicknesses(group, bay);
   group.forEach((book, idx) => {
-    const m = metrics(book);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "flat";
     btn.dataset.title = book.title;
     btn.style.minHeight = `${thick[idx]}px`;
     btn.style.height = "auto";
-    paintCloth(btn, m.cloth);
+    paintCloth(btn, clothFor(book));
     btn.setAttribute("aria-label", ariaText(book));
     const name = document.createElement("span");
     name.className = "name";
@@ -422,7 +493,7 @@ function fauxCover(book) {
   const m = metrics(book);
   const div = document.createElement("div");
   div.className = "faux";
-  paintCloth(div, m.cloth);
+  paintCloth(div, clothFor(book));
   const span = document.createElement("span");
   span.textContent = book.title;
   div.append(span);
@@ -542,7 +613,11 @@ function wire() {
       e.preventDefault();
     });
   });
-  onlyEl.addEventListener("change", renderShelves);
+  onlyEl.addEventListener("click", () => {
+    const on = onlyEl.getAttribute("aria-pressed") === "true";
+    onlyEl.setAttribute("aria-pressed", on ? "false" : "true");
+    renderShelves();
+  });
   qEl.addEventListener("input", renderShelves);
   qEl.addEventListener("keydown", (e) => { if (e.key === "Enter") e.currentTarget.blur(); });
   shelvesEl.addEventListener("click", (e) => {
@@ -585,13 +660,15 @@ async function init() {
     const map = new Map(rows.map((r) => [r.t, r]));
     books = rawBooks.map((b, i) => {
       const rec = rows[i] && rows[i].t === b[1] ? rows[i] : (map.get(b[1]) || {});
+      const extra = extras(b);
       return {
         i,
         cat: b[0],
         title: b[1],
         author: b[2] || "",
         cover: b[3] || "",
-        contents: typeof b[4] === "string" ? b[4] : "",
+        contents: extra.contents,
+        color: extra.color,
         snu: rec.snu || { s: "none" },
         pt: rec.pt || { s: "none" },
       };

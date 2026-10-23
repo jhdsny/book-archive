@@ -13,6 +13,8 @@
 
 소개 글은 `KAKAO_REST_API_KEY` 를 두고 `python3 scripts/fetch_blurbs.py` 를 실행하면 카카오 책 검색의 `contents` 가 채워집니다. 키가 없으면 파일을 바꾸지 않습니다.
 
+`python3 scripts/cover_colors.py` 는 표지에서 책등 색을 뽑아 `#rrggbb` 로 넣습니다. 표지가 없는 책은 기본 색을 씁니다.
+
 분류는 `H` 인문·사회·AI, `W` 일·자기계발, `N`(또는 `F`) 소설·에세이·시입니다.
 
 ## 갱신과 배포

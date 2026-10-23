@@ -97,6 +97,31 @@ def lookup(token, title, author):
     return plain(best.get("contents"))
 
 
+HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def tail(book):
+    contents = ""
+    color = ""
+    for part in book[4:]:
+        if isinstance(part, str) and HEX.match(part.strip()):
+            color = part.strip().lower()
+        elif isinstance(part, str) and part.strip() and not contents:
+            contents = part
+    return contents, color
+
+
+def pack(book, contents, color):
+    head = list(book[:4])
+    while len(head) < 4:
+        head.append("")
+    if contents or color:
+        head.append(contents or "")
+    if color:
+        head.append(color)
+    return head
+
+
 def main():
     token = key()
     if not token:
@@ -107,22 +132,17 @@ def main():
         return 1
     books = json.loads(BOOKS.read_text(encoding="utf-8"))
     found = 0
+    out = []
     for book in books:
         title, author = book[1], book[2] if len(book) > 2 else ""
-        old = book[4] if len(book) > 4 and isinstance(book[4], str) else ""
+        old, color = tail(book)
         got = lookup(token, title, author)
-        if got is None:
-            text = old
-        else:
-            text = got or old
-        if len(book) >= 5:
-            book[4] = text
-        else:
-            book.append(text)
+        text = old if got is None else (got or old)
         if text:
             found += 1
+        out.append(pack(book, text, color))
         time.sleep(0.12)
-    BOOKS.write_text(json.dumps(books, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    BOOKS.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {BOOKS} ({found} blurbs)")
     return 0
 
