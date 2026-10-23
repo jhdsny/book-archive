@@ -17,6 +17,19 @@ const CLOTH = [
   { bg: "#e7c7a4", edge: "#c9a67e", ink: "#2c241c", light: true },
 ];
 
+const KDC = [
+  { id: "0", name: "총류", code: "000" },
+  { id: "1", name: "철학", code: "100" },
+  { id: "2", name: "종교", code: "200" },
+  { id: "3", name: "사회과학", code: "300" },
+  { id: "4", name: "자연과학", code: "400" },
+  { id: "5", name: "기술과학", code: "500" },
+  { id: "6", name: "예술", code: "600" },
+  { id: "7", name: "언어", code: "700" },
+  { id: "8", name: "문학", code: "800" },
+  { id: "9", name: "역사", code: "900" },
+];
+
 const shelvesEl = document.getElementById("shelves");
 const countEl = document.getElementById("count");
 const qEl = document.getElementById("q");
@@ -81,14 +94,57 @@ function nextStatus(cur) {
   return ORDER[(i + 1) % ORDER.length];
 }
 
-function currentCat() {
-  const on = document.querySelector('.cats button[aria-pressed="true"]');
-  return on ? on.dataset.cat : "all";
+function currentClass() {
+  const on = document.querySelector('#classes button[aria-pressed="true"]');
+  return on ? on.dataset.kdc : "all";
 }
 
 function currentLib() {
-  const on = document.querySelector('.seg button[aria-checked="true"]');
+  const on = document.querySelector('.libs button[aria-checked="true"]');
   return on ? on.dataset.lib : "both";
+}
+
+function currentSort() {
+  const on = document.querySelector('.sorts button[aria-checked="true"]');
+  return on ? on.dataset.sort : "call";
+}
+
+function callKey(call) {
+  const m = /^\s*(?:[A-Za-z]{1,4}\s+)*(?:[A-Za-z](?=\d{3}(?:\.\d+)?(?:\s|$|-)))?(\d{1,3})(?:\.(\d+))?(.*)$/.exec(call || "");
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (n > 999) return null;
+  return { int: n, frac: m[2] || "", rest: (m[3] || "").trim() };
+}
+
+function classMark(call) {
+  const m = /^\s*(?:[A-Za-z]{1,4}\s+)*(?:[A-Za-z](?=\d{3}(?:\.\d+)?(?:\s|$|-)))?(\d{1,3}(?:\.\d+)?)/.exec(call || "");
+  return m ? m[1] : "";
+}
+
+function kdcHundred(call) {
+  const key = callKey(call);
+  if (!key) return "";
+  return String(Math.floor(key.int / 100));
+}
+
+function kdcName(call) {
+  const id = kdcHundred(call);
+  const row = KDC.find((item) => item.id === id);
+  return row ? row.name : "";
+}
+
+function compareCall(a, b) {
+  const pa = callKey(a.call);
+  const pb = callKey(b.call);
+  if (!pa && !pb) return a.i - b.i;
+  if (!pa) return 1;
+  if (!pb) return -1;
+  if (pa.int !== pb.int) return pa.int - pb.int;
+  if (pa.frac !== pb.frac) return pa.frac < pb.frac ? -1 : 1;
+  const rest = pa.rest.localeCompare(pb.rest, "ko");
+  if (rest) return rest;
+  return a.i - b.i;
 }
 
 function stateRank(s) {
@@ -147,18 +203,12 @@ function availClass(rec) {
   return "st-err";
 }
 
-function catName(code) {
-  if (code === "H") return "인문·사회·AI";
-  if (code === "W") return "일·자기계발";
-  if (code === "N" || code === "F") return "소설·에세이·시";
-  return "";
-}
-
 function passes(book) {
-  const cat = currentCat();
-  if (cat === "N") {
-    if (book.cat !== "N" && book.cat !== "F") return false;
-  } else if (cat !== "all" && book.cat !== cat) return false;
+  const cls = currentClass();
+  const hundred = kdcHundred(book.call);
+  if (cls === "none") {
+    if (hundred) return false;
+  } else if (cls !== "all" && hundred !== cls) return false;
   const q = qEl.value.trim().toLowerCase().replace(/\s+/g, "");
   if (q) {
     const blob = (book.title + book.author).toLowerCase().replace(/\s+/g, "");
@@ -244,20 +294,24 @@ function paintCloth(el, cloth) {
 function extras(b) {
   let contents = "";
   let color = "";
+  let kdc = "";
   for (const part of b.slice(4)) {
     if (typeof part !== "string") continue;
-    if (/^#[0-9a-fA-F]{6}$/.test(part)) color = part.toLowerCase();
-    else if (part.trim() && !contents) contents = part;
+    const text = part.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(text)) color = text.toLowerCase();
+    else if (/^kdc:/i.test(text)) kdc = text.slice(4).trim();
+    else if (text && !contents) contents = text;
   }
-  return { contents, color };
+  return { contents, color, kdc };
 }
 
-function titlePlan(title, bayPx) {
+function titlePlan(title, bayPx, labeled) {
   const chars = Array.from(title);
   const n = chars.length;
   const h = hash(title);
   const pitch = (size) => size * 1.16;
-  const usable = (pct) => Math.max(36, bayPx * (pct / 100) - 30);
+  const reserve = labeled ? 46 : 30;
+  const usable = (pct) => Math.max(36, bayPx * (pct / 100) - reserve);
   const fits = (count, size, pct) => count * pitch(size) <= usable(pct);
   let size = 13;
   let hPct = 100;
@@ -301,7 +355,15 @@ function titlePlan(title, bayPx) {
 
 function ariaText(book) {
   const st = STATUS_LABEL[statusOf(book.title)];
-  return [book.title, book.author, availPhrase({ s: markStatus(book) }), st].filter(Boolean).join(", ");
+  const mark = classMark(book.call);
+  return [book.title, book.author, mark, availPhrase({ s: markStatus(book) }), st].filter(Boolean).join(", ");
+}
+
+function planFor(book, bay) {
+  const mark = classMark(book.call);
+  const plan = titlePlan(book.title, bay, Boolean(mark));
+  if (mark) plan.w = Math.max(plan.w, Math.ceil(mark.length * 5.4 + 8));
+  return plan;
 }
 
 function contentWidth() {
@@ -334,7 +396,7 @@ function layout(list, maxW) {
     const stackW = Math.round(Math.max(128, Math.min(180, maxW * 0.36)));
     const budget = Math.max(40, maxW - (wantStack ? stackW + 8 : 0));
     while (i < list.length) {
-      const plan = titlePlan(list[i].title, bay);
+      const plan = planFor(list[i], bay);
       const add = plan.w + metrics(list[i]).gap;
       if (items.length && used + add > budget) break;
       if (wantStack && list.length - i <= 3 && items.length) break;
@@ -353,7 +415,7 @@ function layout(list, maxW) {
     row.push(...items);
     if (stack && n % 4 !== 1) row.push(stack);
     if (!row.length && i < list.length) {
-      row.push({ type: "book", book: list[i], plan: titlePlan(list[i].title, bay) });
+      row.push({ type: "book", book: list[i], plan: planFor(list[i], bay) });
       i += 1;
     }
     if (!row.length) break;
@@ -405,7 +467,16 @@ function makeSpine(book, plan) {
   const foot = document.createElement("i");
   foot.className = "foot";
   foot.dataset.s = markKey(markStatus(book));
-  btn.append(title, foot);
+  btn.append(title);
+  const mark = classMark(book.call);
+  if (mark) {
+    btn.classList.add("has-call");
+    const label = document.createElement("span");
+    label.className = "mark";
+    label.textContent = mark;
+    btn.append(label);
+  }
+  btn.append(foot);
   addRibbon(btn, book.title);
   return btn;
 }
@@ -433,7 +504,15 @@ function makeStack(group, stackW, bay) {
     const pages = document.createElement("i");
     pages.className = "pages";
     pages.setAttribute("aria-hidden", "true");
-    btn.append(name, foot, pages);
+    btn.append(name);
+    const mark = classMark(book.call);
+    if (mark) {
+      const label = document.createElement("span");
+      label.className = "mark";
+      label.textContent = mark;
+      btn.append(label);
+    }
+    btn.append(foot, pages);
     addRibbon(btn, book.title);
     wrap.append(btn);
   });
@@ -462,7 +541,8 @@ function renderShelves() {
     const maxW = contentWidth();
     widthToken = Math.round(shelvesEl.clientWidth);
     const list = books.filter(passes);
-    list.sort((a, b) => rankOf(a) - rankOf(b) || a.i - b.i);
+    if (currentSort() === "loan") list.sort((a, b) => rankOf(a) - rankOf(b) || compareCall(a, b));
+    else list.sort(compareCall);
     countEl.textContent = list.length ? `${list.length}권` : "해당하는 책이 없습니다";
     if (!list.length || maxW < 40) {
       shelvesEl.replaceChildren(emptyShelf());
@@ -571,7 +651,11 @@ function refreshMarks(book) {
 function openBook(book) {
   current = book;
   paintCover(book);
-  document.getElementById("d-cat").textContent = catName(book.cat);
+  const klass = kdcName(book.call);
+  document.getElementById("d-cat").textContent = klass || "미분류";
+  const callEl = document.getElementById("d-call");
+  callEl.hidden = !book.call;
+  callEl.textContent = book.call || "";
   document.getElementById("d-title").textContent = book.title;
   document.getElementById("d-author").textContent = book.author;
   const blurb = document.getElementById("d-blurb");
@@ -587,30 +671,54 @@ function openBook(book) {
   dialog.querySelector(".card").scrollTop = 0;
 }
 
-function wire() {
-  document.querySelectorAll(".cats button").forEach((btn) => {
+function bindPressed(box) {
+  box.querySelectorAll("button").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".cats button").forEach((b) => {
+      box.querySelectorAll("button").forEach((b) => {
         b.setAttribute("aria-pressed", b === btn ? "true" : "false");
       });
       renderShelves();
     });
   });
-  document.querySelectorAll(".seg button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".seg button").forEach((b) => {
-        b.setAttribute("aria-checked", b === btn ? "true" : "false");
+}
+
+function mountClasses() {
+  const box = document.getElementById("classes");
+  const have = new Set(books.map((b) => kdcHundred(b.call)).filter(Boolean));
+  const missing = books.some((b) => !kdcHundred(b.call));
+  box.replaceChildren();
+  const add = (id, label) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.kdc = id;
+    btn.textContent = label;
+    btn.setAttribute("aria-pressed", id === "all" ? "true" : "false");
+    box.append(btn);
+  };
+  add("all", "전체");
+  for (const row of KDC) {
+    if (have.has(row.id)) add(row.id, `${row.name} ${row.code}`);
+  }
+  if (missing) add("none", "미분류");
+  bindPressed(box);
+}
+
+function wire() {
+  document.querySelectorAll(".seg").forEach((group) => {
+    const buttons = [...group.querySelectorAll("button")];
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        buttons.forEach((b) => b.setAttribute("aria-checked", b === btn ? "true" : "false"));
+        renderShelves();
       });
-      renderShelves();
-    });
-    btn.addEventListener("keydown", (e) => {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-      const all = [...document.querySelectorAll(".seg button")];
-      const i = all.indexOf(btn);
-      const next = all[(i + (e.key === "ArrowRight" ? 1 : all.length - 1)) % all.length];
-      next.click();
-      next.focus();
-      e.preventDefault();
+      btn.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const i = buttons.indexOf(btn);
+        const next = buttons[(i + (e.key === "ArrowRight" ? 1 : buttons.length - 1)) % buttons.length];
+        next.click();
+        next.focus();
+        e.preventDefault();
+      });
     });
   });
   onlyEl.addEventListener("click", () => {
@@ -669,11 +777,13 @@ async function init() {
         cover: b[3] || "",
         contents: extra.contents,
         color: extra.color,
+        call: extra.kdc,
         snu: rec.snu || { s: "none" },
         pt: rec.pt || { s: "none" },
       };
     });
     byTitle = new Map(books.map((b) => [b.title, b]));
+    mountClasses();
     renderShelves();
     const ro = new ResizeObserver(() => {
       const w = Math.round(shelvesEl.clientWidth);

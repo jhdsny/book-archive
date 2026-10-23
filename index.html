@@ -40,14 +40,13 @@
         </svg>
         <input id="q" type="search" placeholder="제목이나 저자" autocomplete="off" enterkeyhint="search">
       </label>
-      <div class="cats" role="toolbar" aria-label="분류">
-        <button type="button" data-cat="all" aria-pressed="true">전체</button>
-        <button type="button" data-cat="H" aria-pressed="false">인문·사회·AI</button>
-        <button type="button" data-cat="W" aria-pressed="false">일·자기계발</button>
-        <button type="button" data-cat="N" aria-pressed="false">소설·에세이·시</button>
-      </div>
+      <div class="cats" id="classes" role="toolbar" aria-label="한국십진분류"></div>
       <div class="tool-row">
-        <div class="seg" role="radiogroup" aria-label="도서관">
+        <div class="seg sorts" role="radiogroup" aria-label="정렬">
+          <button type="button" role="radio" data-sort="call" aria-checked="true">청구기호</button>
+          <button type="button" role="radio" data-sort="loan" aria-checked="false">대출</button>
+        </div>
+        <div class="seg libs" role="radiogroup" aria-label="도서관">
           <button type="button" role="radio" data-lib="snu" aria-checked="false">서울대</button>
           <button type="button" role="radio" data-lib="pt" aria-checked="false">배다리</button>
           <button type="button" role="radio" data-lib="both" aria-checked="true">둘 다</button>
@@ -70,6 +69,7 @@
         <div class="grab" aria-hidden="true"></div>
         <div class="cover-wrap" id="cover"></div>
         <p class="cat" id="d-cat"></p>
+        <p class="callno" id="d-call" hidden></p>
         <h2 id="d-title"></h2>
         <p class="author" id="d-author"></p>
         <p class="blurb" id="d-blurb" hidden></p>

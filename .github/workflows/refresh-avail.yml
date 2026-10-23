@@ -24,14 +24,14 @@ jobs:
       - name: Refresh library availability
         run: python3 scripts/refresh.py
 
-      - name: Commit avail.json
+      - name: Commit availability and call numbers
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/avail.json
+          git add data/avail.json data/books.json
           if git diff --cached --quiet; then
-            echo "avail.json unchanged"
+            echo "availability and call numbers unchanged"
           else
-            git commit -m "Update library availability"
+            git commit -m "Update library availability and KDC call numbers"
             git push
           fi

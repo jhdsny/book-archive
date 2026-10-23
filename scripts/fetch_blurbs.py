@@ -100,25 +100,37 @@ def lookup(token, title, author):
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
+KDC_MARK = re.compile(r"^kdc:(.+)$", re.I)
+
+
 def tail(book):
     contents = ""
     color = ""
+    kdc = ""
     for part in book[4:]:
-        if isinstance(part, str) and HEX.match(part.strip()):
-            color = part.strip().lower()
-        elif isinstance(part, str) and part.strip() and not contents:
+        if not isinstance(part, str):
+            continue
+        text = part.strip()
+        marked = KDC_MARK.match(text)
+        if HEX.match(text):
+            color = text.lower()
+        elif marked:
+            kdc = marked.group(1).strip()
+        elif text and not contents:
             contents = part
-    return contents, color
+    return contents, color, kdc
 
 
-def pack(book, contents, color):
+def pack(book, contents, color, kdc=""):
     head = list(book[:4])
     while len(head) < 4:
         head.append("")
-    if contents or color:
+    if contents or color or kdc:
         head.append(contents or "")
     if color:
         head.append(color)
+    if kdc:
+        head.append("kdc:" + kdc)
     return head
 
 
@@ -135,12 +147,12 @@ def main():
     out = []
     for book in books:
         title, author = book[1], book[2] if len(book) > 2 else ""
-        old, color = tail(book)
+        old, color, kdc = tail(book)
         got = lookup(token, title, author)
         text = old if got is None else (got or old)
         if text:
             found += 1
-        out.append(pack(book, text, color))
+        out.append(pack(book, text, color, kdc))
         time.sleep(0.12)
     BOOKS.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {BOOKS} ({found} blurbs)")
