@@ -579,7 +579,7 @@ function openBook(book) {
   blurb.hidden = !text;
   blurb.textContent = text;
   const slip = document.getElementById("slip");
-  slip.replaceChildren(slipRow("서울대", book.snu), slipRow("배다리", book.pt));
+  slip.replaceChildren(slipRow("중앙도서관", book.snu), slipRow("배다리", book.pt));
   const links = document.getElementById("links");
   links.replaceChildren(extLink(snuHref(book.title), "서울대 검색"), extLink(ptHref(book.title), "배다리 검색"));
   paintCycle(statusOf(book.title));

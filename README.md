@@ -19,7 +19,7 @@
 
 ## 갱신과 배포
 
-`scripts/refresh.py` 가 소장 현황을 다시 받아 `data/avail.json` 에 씁니다. GitHub Actions가 매일 22:00 KST 무렵 이 스크립트를 실행합니다.
+`scripts/refresh.py` 가 소장 현황을 다시 받아 `data/avail.json` 에 씁니다. 서울대는 중앙도서관(관정관 포함)에 대출 가능한 책이 있을 때만 대출가능이고, 분관은 세지 않습니다. GitHub Actions가 매일 22:00 KST 무렵 이 스크립트를 실행합니다.
 
 사이트는 `.github/workflows/pages.yml` 로 GitHub Pages에 배포됩니다. 사이트가 아직 없으면 워크플로가 대신 만들 수 없어서, 처음 한 번은 저장소 설정에서 직접 켭니다.
 

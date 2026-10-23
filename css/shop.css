@@ -585,7 +585,7 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
 
 .slip p {
   display: grid;
-  grid-template-columns: 3.4em 1fr;
+  grid-template-columns: 5.6em 1fr;
   gap: 8px;
   margin: 0;
   padding: 8px 0;

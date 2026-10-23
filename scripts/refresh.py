@@ -61,6 +61,21 @@ def load_token():
 TOK = load_token()
 
 
+def central_label(line):
+    """중앙도서관, including the 관정관 building. Branch libraries are ignored."""
+    y = re.search(r"\$\$Y([^$]+)", line)
+    z = re.search(r"\$\$Z([^$]+)", line)
+    lib = re.search(r"\$\$L([^$]+)", line)
+    name = (y.group(1) if y else "").strip()
+    place = (z.group(1) if z else "").strip()
+    code = (lib.group(1) if lib else "").strip()
+    if "관정" in name + place:
+        return "관정관"
+    if name.startswith("중앙") or code == "MAIN":
+        return "중앙"
+    return ""
+
+
 def snu(title, author):
     if not TOK:
         return {"s": "err"}
@@ -74,8 +89,7 @@ def snu(title, author):
     d = json.loads(get(u, {"Authorization": "Bearer " + TOK}))
     av = 0
     un = 0
-    hit = 0
-    br = set()
+    labels = set()
     a1 = norm(author.split("·")[0])[:2]
     for x in d.get("docs", []):
         p = x["pnx"]["display"]
@@ -88,24 +102,25 @@ def snu(title, author):
         cc = norm(" ".join(p.get("creator", [])))
         if a1 and re.search("[가-힣]", cc) and a1 not in cr + norm(t):
             continue
-        for l in p.get("availlibrary", []):
-            hit = 1
-            m = re.search(r"\$\$S(\w+)", l)
-            y = re.search(r"\$\$Y([^$]+)", l)
-            if m and m.group(1) == "available":
+        for line in p.get("availlibrary", []):
+            label = central_label(line)
+            if not label:
+                continue
+            status = re.search(r"\$\$S(\w+)", line)
+            if status and status.group(1) == "available":
                 av += 1
-                br.add(y.group(1) if y else "")
+                labels.add(label)
             else:
                 un += 1
-    if not hit:
-        return {"s": "none"}
     if av:
-        where = "·".join(sorted(br, key=lambda b: (b != "중앙", b))[:2])
+        where = "·".join(sorted(labels, key=lambda b: (b != "중앙", b)))
         out = {"s": "avail", "n": av}
         if where:
             out["where"] = where
         return out
-    return {"s": "out"}
+    if un:
+        return {"s": "out"}
+    return {"s": "none"}
 
 
 def pt(title, author):
