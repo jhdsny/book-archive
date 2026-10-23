@@ -44,8 +44,13 @@ def key():
     return os.environ.get("KAKAO_REST_API_KEY") or os.environ.get("KAKAO_API_KEY") or ""
 
 
-def search(token, query):
-    url = API + "?" + urllib.parse.urlencode({"query": query, "target": "title", "size": "5"})
+def search(token, query, target="title"):
+    params = {"query": query, "size": "5"}
+    # An empty target searches every field, so a title plus the author can
+    # still find the right edition when the title alone is shared.
+    if target:
+        params["target"] = target
+    url = API + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(
         url,
         headers={"Authorization": "KakaoAK " + token, "User-Agent": "book-archive"},
@@ -54,47 +59,66 @@ def search(token, query):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def score(doc, title, author):
+def title_score(doc, title):
     got = plain(doc.get("title"))
     ng, nq = norm(got), norm(title)
     nc = norm(core(title))
     if ng and ng == nq:
-        s = 5
-    elif nq and (nq in ng or ng in nq):
-        s = 3
-    elif nc and nc in ng:
-        s = 2
-    else:
-        s = 0
-    a1 = norm(author.split("·")[0])[:2]
-    names = norm("".join(doc.get("authors") or []))
-    if a1 and a1 in names:
-        s += 2
-    return s
+        return 5
+    if nq and (nq in ng or ng in nq):
+        return 3
+    if nc and len(nc) >= 4 and nc in ng:
+        return 2
+    return 0
+
+
+def author_agrees(doc, author):
+    """True or False when both names are Korean. None when they cannot be compared."""
+    our = norm((author or "").split("·")[0])
+    listed = " ".join(doc.get("authors") or [])
+    if not our or not re.search(r"[가-힣]", author or "") or not re.search(r"[가-힣]", listed):
+        return None
+    return our[:2] in norm(listed)
 
 
 def lookup(token, title, author):
-    best = None
-    best_s = 0
+    """Return (contents, document). None means the search itself failed."""
+    pool = []
+    failed = False
+
+    def take(query, target="title"):
+        nonlocal failed
+        try:
+            data = search(token, query, target)
+        except Exception as e:
+            print(f"search failed for {title}: {e}", file=sys.stderr)
+            failed = True
+            return
+        for doc in data.get("documents") or []:
+            ts = title_score(doc, title)
+            if ts < 2:
+                continue
+            flag = author_agrees(doc, author)
+            if flag is False:
+                continue
+            pool.append((ts + (2 if flag else 0), doc))
+
     for query in (title, core(title)):
         if not query:
             continue
-        try:
-            data = search(token, query)
-        except Exception as e:
-            print(f"search failed for {title}: {e}", file=sys.stderr)
-            return None
-        for doc in data.get("documents") or []:
-            s = score(doc, title, author)
-            if s > best_s:
-                best_s = s
-                best = doc
-        if best_s >= 5:
+        take(query)
+        if pool and max(item[0] for item in pool) >= 5:
             break
         time.sleep(0.15)
-    if best_s < 2 or not best:
-        return ""
-    return plain(best.get("contents"))
+    author_bit = (author or "").split("·")[0].strip()
+    if not pool and author_bit and not failed:
+        take(f"{core(title)} {author_bit}", target="")
+    if failed and not pool:
+        return None
+    if not pool:
+        return "", None
+    _s, doc = max(pool, key=lambda item: item[0])
+    return plain(doc.get("contents")), doc
 
 
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -134,6 +158,21 @@ def pack(book, contents, color, kdc=""):
     return head
 
 
+def isbn_of(doc):
+    parts = []
+    for part in str(doc.get("isbn") or "").replace("-", " ").split():
+        digits = re.sub(r"[^0-9Xx]", "", part)
+        if digits:
+            parts.append(digits)
+    for digits in parts:
+        if len(digits) == 13 and digits[:3] in ("978", "979"):
+            return digits
+    for digits in parts:
+        if len(digits) in (10, 13):
+            return digits
+    return ""
+
+
 def main():
     token = key()
     if not token:
@@ -144,18 +183,58 @@ def main():
         return 1
     books = json.loads(BOOKS.read_text(encoding="utf-8"))
     found = 0
+    new_covers = 0
+    new_kdc = 0
     out = []
+    color_mod = None
+    refresh_mod = None
     for book in books:
         title, author = book[1], book[2] if len(book) > 2 else ""
         old, color, kdc = tail(book)
+        cover = book[3] if len(book) > 3 else ""
         got = lookup(token, title, author)
-        text = old if got is None else (got or old)
+        if got is None:
+            text, doc = old, None
+        else:
+            text, doc = got
+        if doc and not cover:
+            thumb = (doc.get("thumbnail") or "").strip()
+            if thumb.startswith("http"):
+                cover = thumb
+                new_covers += 1
+        if doc and not kdc:
+            isbn = isbn_of(doc)
+            if isbn:
+                if refresh_mod is None:
+                    import refresh as refresh_mod
+                try:
+                    found_call = refresh_mod.fetch_nlk(title, author, isbn)
+                except Exception as e:
+                    print(f"kdc lookup failed for {title}: {e}", file=sys.stderr)
+                    found_call = ""
+                if refresh_mod.class_number(found_call):
+                    kdc = found_call
+                    new_kdc += 1
+        if cover and not color:
+            if color_mod is None:
+                import cover_colors as color_mod
+            try:
+                rgb = color_mod.fetch(cover)
+            except Exception as e:
+                print(f"cover color failed for {title}: {e}", file=sys.stderr)
+                rgb = None
+            if rgb:
+                color = color_mod.hex_of(rgb)
         if text:
             found += 1
-        out.append(pack(book, text, color, kdc))
+        head = list(book[:4])
+        while len(head) < 4:
+            head.append("")
+        head[3] = cover
+        out.append(pack(head, text, color, kdc))
         time.sleep(0.12)
     BOOKS.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {BOOKS} ({found} blurbs)")
+    print(f"wrote {BOOKS} ({found} blurbs, {new_covers} new covers, {new_kdc} new call numbers)")
     return 0
 
 
