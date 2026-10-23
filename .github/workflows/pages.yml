@@ -9,6 +9,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # Creating the Pages site the first time needs this; deploy alone does not.
+  administration: write
 
 concurrency:
   group: pages
