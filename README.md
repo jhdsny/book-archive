@@ -6,8 +6,12 @@
 
 ## 데이터
 
-- `data/books.json` — `[분류, 제목, 저자, 표지]`
+- `data/books.json` — `[분류, 제목, 저자, 표지]`. 소개 글이 있으면 다섯째 칸
 - `data/avail.json` — 도서관별 대출 상태
+
+배경은 이 서재를 위해 만든 그림 `assets/library_bg.jpg` 입니다.
+
+소개 글은 `KAKAO_REST_API_KEY` 를 두고 `python3 scripts/fetch_blurbs.py` 를 실행하면 카카오 책 검색의 `contents` 가 채워집니다. 키가 없으면 파일을 바꾸지 않습니다.
 
 분류는 `H` 인문·사회·AI, `W` 일·자기계발, `N`(또는 `F`) 소설·에세이·시입니다.
 

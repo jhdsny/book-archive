@@ -3,18 +3,18 @@ const ORDER = ["", "want", "maybe", "read"];
 const STATUS_LABEL = { want: "읽고 싶음", maybe: "후보", read: "읽음" };
 
 const CLOTH = [
-  { bg: "#6d8494", edge: "#52687a", light: false },
-  { bg: "#3e6b66", edge: "#2c4e4a", light: false },
-  { bg: "#e6d5b4", edge: "#c9b48c", light: true },
-  { bg: "#8c4639", edge: "#6a3328", light: false },
-  { bg: "#c4a15a", edge: "#a07e3c", light: true },
-  { bg: "#a56b38", edge: "#7d4e26", light: false },
-  { bg: "#6d5b48", edge: "#514334", light: false },
-  { bg: "#7d8b74", edge: "#5e6b56", light: false },
-  { bg: "#95564e", edge: "#713e38", light: false },
-  { bg: "#4d6170", edge: "#384856", light: false },
-  { bg: "#d9d1c3", edge: "#b7ad9c", light: true },
-  { bg: "#3f5e72", edge: "#2d4554", light: false },
+  { bg: "#2f6f73", edge: "#1d4e52", ink: "#f6edd9", light: false },
+  { bg: "#3e6288", edge: "#2a4664", ink: "#f4efe4", light: false },
+  { bg: "#1f4464", edge: "#163348", ink: "#f6edd9", light: false },
+  { bg: "#e6d3a4", edge: "#c4ad7c", ink: "#243044", light: true },
+  { bg: "#d08a45", edge: "#a86a30", ink: "#2a2118", light: true },
+  { bg: "#c56b4a", edge: "#9a4e34", ink: "#f8f1e4", light: false },
+  { bg: "#7f9a84", edge: "#5e7864", ink: "#1c2c24", light: true },
+  { bg: "#8d4e4c", edge: "#6c3836", ink: "#f6edd9", light: false },
+  { bg: "#f0e2c4", edge: "#d4c4a4", ink: "#243044", light: true },
+  { bg: "#4e8f8a", edge: "#366e6a", ink: "#f7f1e4", light: false },
+  { bg: "#6a7f99", edge: "#4e6278", ink: "#f4efe4", light: false },
+  { bg: "#e7c7a4", edge: "#c9a67e", ink: "#2c241c", light: true },
 ];
 
 const shelvesEl = document.getElementById("shelves");
@@ -48,10 +48,8 @@ function metrics(book) {
   const h = hash(book.title);
   m = {
     cloth: CLOTH[h % CLOTH.length],
-    w: 28 + (h % 6) * 4,
-    h: [76, 84, 90, 95, 100, 88, 92, 80][(h >>> 4) % 8],
-    tilt: ((((h >>> 8) % 5) - 2) * 0.4).toFixed(2),
-    style: (h >>> 12) % 4,
+    tilt: ((((h >>> 8) % 7) - 3) * 0.4).toFixed(2),
+    gap: 3 + (h % 4),
   };
   look.set(book.title, m);
   return m;
@@ -175,11 +173,58 @@ function passes(book) {
   return true;
 }
 
-function spineText(title, heightPct) {
-  const core = (title.split(/[:：(（]/)[0] || title).replace(/\s+/g, "");
-  const n = heightPct >= 94 ? 9 : heightPct >= 84 ? 8 : 6;
-  if (core.length <= n) return core;
-  return core.slice(0, n - 1) + "…";
+function paintCloth(el, cloth) {
+  el.style.setProperty("--cloth", cloth.bg);
+  el.style.setProperty("--edge", cloth.edge);
+  el.style.setProperty("--ink-on", cloth.ink);
+  el.style.setProperty("--shade", cloth.light ? "rgba(255,255,255,.5)" : "rgba(0,0,0,.35)");
+}
+
+function titlePlan(title, bayPx) {
+  const chars = Array.from(title);
+  const n = chars.length;
+  const h = hash(title);
+  const pitch = (size) => size * 1.16;
+  const usable = (pct) => Math.max(36, bayPx * (pct / 100) - 30);
+  const fits = (count, size, pct) => count * pitch(size) <= usable(pct);
+  let size = 13;
+  let hPct = 100;
+  let parts = [title];
+  if (n <= 4) {
+    size = 14.5;
+    hPct = 74 + (h % 4) * 5;
+    if (!fits(n, size, hPct)) hPct = 100;
+  } else if (fits(n, 12, 100)) {
+    size = n <= 8 ? 13.5 : 12;
+    hPct = n <= 8 ? 86 + (h % 3) * 4 : 100;
+    if (!fits(n, size, hPct)) hPct = 100;
+    if (!fits(n, size, 100)) size = 11;
+  } else {
+    const mid = Math.round(n / 2);
+    let at = mid;
+    let best = 1e9;
+    for (let i = 2; i < n - 1; i++) {
+      const ch = chars[i];
+      const prev = chars[i - 1];
+      if (ch !== " " && prev !== " " && ch !== ":" && ch !== "：" && ch !== "·") continue;
+      const d = Math.abs(i - mid);
+      if (d < best) { best = d; at = i; }
+    }
+    let a = chars.slice(0, at).join("").trim();
+    let b = chars.slice(at).join("").trim();
+    if (!a || !b) {
+      a = chars.slice(0, mid).join("");
+      b = chars.slice(mid).join("");
+    }
+    parts = [a, b];
+    const longer = Math.max(Array.from(a).length, Array.from(b).length);
+    size = 13;
+    while (size > 8.5 && !fits(longer, size, 100)) size -= 0.5;
+  }
+  const w = parts.length === 1
+    ? Math.round(Math.max(30, size + 16 + (h % 5)))
+    : Math.round(size * 2 + 20);
+  return { size, w, hPct, parts };
 }
 
 function ariaText(book) {
@@ -206,39 +251,37 @@ function bayHeight() {
 }
 
 function layout(list, maxW) {
-  const GAP = 3;
   const shelves = [];
   let i = 0;
   let n = 0;
+  const bay = bayHeight();
   while (i < list.length) {
     const items = [];
     let used = 0;
-    const wantStack = n % 2 === 1 && list.length - i >= 6;
-    const stackCount = Math.min(4, list.length - i - 1);
-    const stackW = Math.round(Math.max(124, Math.min(196, maxW * 0.34)));
-    const budget = Math.max(36, maxW - (wantStack ? stackW + GAP : 0));
+    const wantStack = n % 2 === 1 && list.length - i >= 5;
+    const stackW = Math.round(Math.max(128, Math.min(180, maxW * 0.36)));
+    const budget = Math.max(40, maxW - (wantStack ? stackW + 8 : 0));
     while (i < list.length) {
-      const w = metrics(list[i]).w;
-      const add = (items.length ? GAP : 0) + w;
+      const plan = titlePlan(list[i].title, bay);
+      const add = plan.w + metrics(list[i]).gap;
       if (items.length && used + add > budget) break;
-      if (wantStack && list.length - i <= stackCount && items.length) break;
-      items.push({ type: "book", book: list[i], w });
+      if (wantStack && list.length - i <= 3 && items.length) break;
+      items.push({ type: "book", book: list[i], plan });
       used += add;
       i += 1;
-      if (items.length >= 20) break;
+      if (items.length >= 16) break;
     }
     let stack = null;
     if (wantStack && list.length - i >= 3) {
-      const count = list.length - i >= 4 ? 4 : 3;
-      stack = { type: "stack", books: list.slice(i, i + count), w: stackW };
-      i += count;
+      stack = { type: "stack", books: list.slice(i, i + 3), w: stackW };
+      i += 3;
     }
     const row = [];
     if (stack && n % 4 === 1) row.push(stack);
     row.push(...items);
     if (stack && n % 4 !== 1) row.push(stack);
     if (!row.length && i < list.length) {
-      row.push({ type: "book", book: list[i], w: metrics(list[i]).w });
+      row.push({ type: "book", book: list[i], plan: titlePlan(list[i].title, bay) });
       i += 1;
     }
     if (!row.length) break;
@@ -267,27 +310,30 @@ function addRibbon(btn, title) {
   btn.append(rib);
 }
 
-function makeSpine(book, w) {
+function makeSpine(book, plan) {
   const m = metrics(book);
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "spine" + (m.cloth.light ? " is-light" : "");
+  btn.className = "spine";
   btn.dataset.title = book.title;
-  btn.dataset.style = String(m.style);
-  btn.style.setProperty("--w", `${w}px`);
-  btn.style.setProperty("--h", `${m.h}%`);
+  btn.style.setProperty("--w", `${plan.w}px`);
+  btn.style.setProperty("--h", `${plan.hPct}%`);
   btn.style.setProperty("--tilt", `${m.tilt}deg`);
-  btn.style.setProperty("--cloth", m.cloth.bg);
-  btn.style.setProperty("--edge", m.cloth.edge);
-  btn.style.setProperty("--fs", w < 34 ? "11px" : "12.5px");
+  btn.style.setProperty("--gap", `${m.gap}px`);
+  btn.style.setProperty("--fs", `${plan.size}px`);
+  paintCloth(btn, m.cloth);
   btn.setAttribute("aria-label", ariaText(book));
-  const label = document.createElement("span");
-  label.className = "label";
-  label.textContent = spineText(book.title, m.h);
+  const title = document.createElement("span");
+  title.className = "title";
+  for (const part of plan.parts) {
+    const col = document.createElement("span");
+    col.textContent = part;
+    title.append(col);
+  }
   const foot = document.createElement("i");
   foot.className = "foot";
   foot.dataset.s = markKey(markStatus(book));
-  btn.append(label, foot);
+  btn.append(title, foot);
   addRibbon(btn, book.title);
   return btn;
 }
@@ -303,9 +349,9 @@ function makeStack(group, stackW, bay) {
     btn.type = "button";
     btn.className = "flat";
     btn.dataset.title = book.title;
-    btn.style.height = `${thick[idx]}px`;
-    btn.style.color = m.cloth.light ? "#2c2118" : "#f6efe4";
-    btn.style.background = `linear-gradient(180deg, rgba(255,255,255,.22), transparent 42%, rgba(0,0,0,.16)), linear-gradient(90deg, ${m.cloth.edge}, ${m.cloth.bg} 14%, ${m.cloth.bg} 86%, ${m.cloth.edge})`;
+    btn.style.minHeight = `${thick[idx]}px`;
+    btn.style.height = "auto";
+    paintCloth(btn, m.cloth);
     btn.setAttribute("aria-label", ariaText(book));
     const name = document.createElement("span");
     name.className = "name";
@@ -359,7 +405,7 @@ function renderShelves() {
       const bayEl = document.createElement("div");
       bayEl.className = "bay";
       for (const item of row) {
-        bayEl.append(item.type === "stack" ? makeStack(item.books, item.w, bay) : makeSpine(item.book, item.w));
+        bayEl.append(item.type === "stack" ? makeStack(item.books, item.w, bay) : makeSpine(item.book, item.plan));
       }
       const plank = document.createElement("div");
       plank.className = "plank";
@@ -375,9 +421,8 @@ function renderShelves() {
 function fauxCover(book) {
   const m = metrics(book);
   const div = document.createElement("div");
-  div.className = "faux" + (m.cloth.light ? " light" : "");
-  div.style.setProperty("--cloth", m.cloth.bg);
-  div.style.setProperty("--edge", m.cloth.edge);
+  div.className = "faux";
+  paintCloth(div, m.cloth);
   const span = document.createElement("span");
   span.textContent = book.title;
   div.append(span);
@@ -458,6 +503,10 @@ function openBook(book) {
   document.getElementById("d-cat").textContent = catName(book.cat);
   document.getElementById("d-title").textContent = book.title;
   document.getElementById("d-author").textContent = book.author;
+  const blurb = document.getElementById("d-blurb");
+  const text = (book.contents || "").trim();
+  blurb.hidden = !text;
+  blurb.textContent = text;
   const slip = document.getElementById("slip");
   slip.replaceChildren(slipRow("서울대", book.snu), slipRow("배다리", book.pt));
   const links = document.getElementById("links");
@@ -542,6 +591,7 @@ async function init() {
         title: b[1],
         author: b[2] || "",
         cover: b[3] || "",
+        contents: typeof b[4] === "string" ? b[4] : "",
         snu: rec.snu || { s: "none" },
         pt: rec.pt || { s: "none" },
       };
