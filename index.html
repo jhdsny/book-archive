@@ -53,6 +53,7 @@
         </div>
         <button type="button" class="stamp" id="only" aria-pressed="false">대출가능만</button>
         <button type="button" class="stamp read-stamp" id="reads" aria-pressed="false">읽은 책</button>
+        <button type="button" class="stamp gone-stamp" id="deleted" aria-pressed="false">삭제한 책</button>
       </div>
     </div>
 
@@ -84,11 +85,14 @@
           <p class="blurb" id="d-blurb" hidden></p>
           <div class="slip" id="slip"></div>
           <div class="links" id="links"></div>
-          <button type="button" class="cycle" id="cycle">
-            <span data-v="want">읽고 싶음</span>
-            <span data-v="maybe">후보</span>
-            <span data-v="read">읽음</span>
-          </button>
+          <div class="detail-actions">
+            <button type="button" class="cycle" id="cycle">
+              <span data-v="want">읽고 싶음</span>
+              <span data-v="maybe">후보</span>
+              <span data-v="read">읽음</span>
+            </button>
+            <button type="button" class="remove" id="remove">삭제</button>
+          </div>
         </div>
       </article>
     </div>

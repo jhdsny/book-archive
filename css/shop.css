@@ -679,15 +679,34 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
   text-underline-offset: 3px;
 }
 
+.detail-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 8px;
+}
+
 .cycle {
   display: grid;
   grid-template-columns: 1.35fr .8fr .8fr;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 0;
   padding: 0;
   border: 1px solid var(--line);
   background: transparent;
   overflow: hidden;
+}
+
+.remove {
+  min-width: 64px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid #c9a098;
+  background: #f6efe4;
+  color: #8d3b32;
+  font-size: 1rem;
+  line-height: 1.2;
 }
 
 .cycle span {
@@ -721,6 +740,19 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
   box-shadow: inset 0 0 0 1px rgba(29, 92, 88, .35);
 }
 
+.gone-stamp {
+  color: rgba(141, 59, 50, .72);
+  border-color: rgba(141, 59, 50, .4);
+  transform: rotate(3deg);
+}
+
+.gone-stamp[aria-pressed="true"] {
+  color: #8d3b32;
+  border-color: #8d3b32;
+  background: rgba(141, 59, 50, .08);
+  box-shadow: inset 0 0 0 1px rgba(141, 59, 50, .35);
+}
+
 .case { overflow-x: clip; }
 
 @media (max-width: 640px) {
@@ -737,7 +769,7 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
   .seg button[aria-checked="true"],
   .cats button[aria-pressed="true"] { transform: none; }
   .tool-row { gap: 12px 10px; align-items: center; }
-  .stamp, .read-stamp {
+  .stamp, .read-stamp, .gone-stamp {
     min-height: 44px;
     margin: 0;
     padding: 6px 10px;
@@ -780,7 +812,7 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
     height: 216px;
     margin: 4px 0 0;
   }
-  .cat, .callno, .card h2, .author, .blurb, .slip, .links, .cycle { grid-column: 2; }
+  .cat, .callno, .card h2, .author, .blurb, .slip, .links, .detail-actions { grid-column: 2; }
   .card h2, .author, .cat, .callno, .blurb { text-align: left; }
   .card h2 { font-size: 1.4rem; }
   .links { justify-content: flex-start; }

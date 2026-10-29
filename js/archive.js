@@ -1,4 +1,5 @@
 const STATUS_KEY = "book-archive-status";
+const DELETE_KEY = "book-archive-deleted";
 const ORDER = ["", "want", "maybe", "read"];
 const STATUS_LABEL = { want: "읽고 싶음", maybe: "후보", read: "읽음" };
 
@@ -35,6 +36,8 @@ const countEl = document.getElementById("count");
 const qEl = document.getElementById("q");
 const onlyEl = document.getElementById("only");
 const readsEl = document.getElementById("reads");
+const deletedEl = document.getElementById("deleted");
+const removeEl = document.getElementById("remove");
 const dialog = document.getElementById("detail");
 const coverEl = document.getElementById("cover");
 const cycleEl = document.getElementById("cycle");
@@ -42,6 +45,7 @@ const cycleEl = document.getElementById("cycle");
 let books = [];
 let byTitle = new Map();
 let memoryStatus = {};
+let memoryDeleted = {};
 let current = null;
 let laying = false;
 let widthToken = 0;
@@ -89,6 +93,26 @@ function saveStatus(title, value) {
   else delete all[title];
   memoryStatus = all;
   try { localStorage.setItem(STATUS_KEY, JSON.stringify(all)); } catch (e) { /* ignore */ }
+}
+
+function loadDeleted() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DELETE_KEY) || "{}");
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch (e) { /* private mode */ }
+  return memoryDeleted;
+}
+
+function isDeleted(title) {
+  return Boolean(loadDeleted()[title]);
+}
+
+function saveDeleted(title, on) {
+  const all = loadDeleted();
+  if (on) all[title] = true;
+  else delete all[title];
+  memoryDeleted = all;
+  try { localStorage.setItem(DELETE_KEY, JSON.stringify(all)); } catch (e) { /* ignore */ }
 }
 
 function nextStatus(cur) {
@@ -209,9 +233,20 @@ function showingRead() {
   return readsEl.getAttribute("aria-pressed") === "true";
 }
 
+function showingDeleted() {
+  return deletedEl.getAttribute("aria-pressed") === "true";
+}
+
 function passes(book) {
-  const read = statusOf(book.title) === "read";
-  if (showingRead() !== read) return false;
+  const gone = isDeleted(book.title);
+  if (showingDeleted()) {
+    if (!gone) return false;
+  } else if (gone) {
+    return false;
+  } else {
+    const read = statusOf(book.title) === "read";
+    if (showingRead() !== read) return false;
+  }
   const cls = currentClass();
   const hundred = kdcHundred(book.call);
   if (cls === "none") {
@@ -551,10 +586,13 @@ function renderShelves() {
     const list = books.filter(passes);
     if (currentSort() === "loan") list.sort((a, b) => rankOf(a) - rankOf(b) || compareCall(a, b));
     else list.sort(compareCall);
-    const emptyText = showingRead() ? "읽은 책이 없습니다" : "해당하는 책이 없습니다";
-    countEl.textContent = list.length
-      ? (showingRead() ? `읽은 책 ${list.length}권` : `${list.length}권`)
-      : emptyText;
+    const emptyText = showingDeleted()
+      ? "삭제한 책이 없습니다"
+      : (showingRead() ? "읽은 책이 없습니다" : "해당하는 책이 없습니다");
+    const countText = showingDeleted()
+      ? `삭제한 책 ${list.length}권`
+      : (showingRead() ? `읽은 책 ${list.length}권` : `${list.length}권`);
+    countEl.textContent = list.length ? countText : emptyText;
     if (!list.length || maxW < 40) {
       shelvesEl.replaceChildren(emptyShelf(emptyText));
       return;
@@ -649,6 +687,12 @@ function paintCycle(status) {
   cycleEl.setAttribute("aria-label", `독서 상태, ${name}. 눌러서 바꿉니다.`);
 }
 
+function paintRemove(title) {
+  const gone = isDeleted(title);
+  removeEl.textContent = gone ? "복원" : "삭제";
+  removeEl.setAttribute("aria-label", gone ? "삭제한 책을 서가로 되돌리기" : "이 책을 서가에서 삭제");
+}
+
 function refreshMarks(book) {
   const label = ariaText(book);
   document.querySelectorAll("button[data-title]").forEach((btn) => {
@@ -682,6 +726,7 @@ function openBook(book) {
   const links = document.getElementById("links");
   links.replaceChildren(extLink(snuHref(book.title), "서울대 검색"), extLink(ptHref(book.title), "배다리 검색"));
   paintCycle(statusOf(book.title));
+  paintRemove(book.title);
   if (!dialog.open) {
     history.pushState({ detail: true }, "");
     detailState = true;
@@ -750,6 +795,26 @@ function wire() {
     const on = readsEl.getAttribute("aria-pressed") === "true";
     readsEl.setAttribute("aria-pressed", on ? "false" : "true");
     renderShelves();
+  });
+  deletedEl.addEventListener("click", () => {
+    const on = deletedEl.getAttribute("aria-pressed") === "true";
+    deletedEl.setAttribute("aria-pressed", on ? "false" : "true");
+    renderShelves();
+  });
+  removeEl.addEventListener("click", () => {
+    if (!current) return;
+    const title = current.title;
+    if (isDeleted(title)) {
+      saveDeleted(title, false);
+      paintRemove(title);
+      renderShelves();
+      closeDetail();
+      return;
+    }
+    if (!window.confirm("이 책을 삭제할까요?")) return;
+    saveDeleted(title, true);
+    renderShelves();
+    closeDetail();
   });
   qEl.addEventListener("input", renderShelves);
   qEl.addEventListener("keydown", (e) => { if (e.key === "Enter") e.currentTarget.blur(); });
