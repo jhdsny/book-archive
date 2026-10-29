@@ -52,6 +52,7 @@
           <button type="button" role="radio" data-lib="both" aria-checked="true">둘 다</button>
         </div>
         <button type="button" class="stamp" id="only" aria-pressed="false">대출가능만</button>
+        <button type="button" class="stamp read-stamp" id="reads" aria-pressed="false">읽은 책</button>
       </div>
     </div>
 
@@ -65,21 +66,30 @@
   <dialog id="detail">
     <div class="sheet">
       <article class="card">
-        <button type="button" class="close" id="close">닫기</button>
-        <div class="grab" aria-hidden="true"></div>
-        <div class="cover-wrap" id="cover"></div>
-        <p class="cat" id="d-cat"></p>
-        <p class="callno" id="d-call" hidden></p>
-        <h2 id="d-title"></h2>
-        <p class="author" id="d-author"></p>
-        <p class="blurb" id="d-blurb" hidden></p>
-        <div class="slip" id="slip"></div>
-        <div class="links" id="links"></div>
-        <button type="button" class="cycle" id="cycle">
-          <span data-v="want">읽고 싶음</span>
-          <span data-v="maybe">후보</span>
-          <span data-v="read">읽음</span>
-        </button>
+        <div class="card-top">
+          <div class="grab" aria-hidden="true"></div>
+          <button type="button" class="close" id="close">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6.5 18 18.5M18 6.5 6 18.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            닫기
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="cover-wrap" id="cover"></div>
+          <p class="cat" id="d-cat"></p>
+          <p class="callno" id="d-call" hidden></p>
+          <h2 id="d-title"></h2>
+          <p class="author" id="d-author"></p>
+          <p class="blurb" id="d-blurb" hidden></p>
+          <div class="slip" id="slip"></div>
+          <div class="links" id="links"></div>
+          <button type="button" class="cycle" id="cycle">
+            <span data-v="want">읽고 싶음</span>
+            <span data-v="maybe">후보</span>
+            <span data-v="read">읽음</span>
+          </button>
+        </div>
       </article>
     </div>
   </dialog>
