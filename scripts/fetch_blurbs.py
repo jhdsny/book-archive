@@ -125,36 +125,45 @@ HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 KDC_MARK = re.compile(r"^kdc:(.+)$", re.I)
+SPINE_MARK = re.compile(r"^spine:(.+)$", re.I)
 
 
 def tail(book):
     contents = ""
     color = ""
     kdc = ""
+    spine = ""
     for part in book[4:]:
         if not isinstance(part, str):
             continue
         text = part.strip()
         marked = KDC_MARK.match(text)
+        marked_spine = SPINE_MARK.match(text)
         if HEX.match(text):
             color = text.lower()
         elif marked:
             kdc = marked.group(1).strip()
+        elif marked_spine:
+            spine = marked_spine.group(1).strip()
         elif text and not contents:
             contents = part
-    return contents, color, kdc
+    return contents, color, kdc, spine
 
 
-def pack(book, contents, color, kdc=""):
+def pack(book, contents, color, kdc="", spine=None):
     head = list(book[:4])
     while len(head) < 4:
         head.append("")
-    if contents or color or kdc:
+    if spine is None:
+        spine = tail(book)[3]
+    if contents or color or kdc or spine:
         head.append(contents or "")
     if color:
         head.append(color)
     if kdc:
         head.append("kdc:" + kdc)
+    if spine:
+        head.append("spine:" + spine)
     return head
 
 
@@ -190,7 +199,7 @@ def main():
     refresh_mod = None
     for book in books:
         title, author = book[1], book[2] if len(book) > 2 else ""
-        old, color, kdc = tail(book)
+        old, color, kdc, spine = tail(book)
         cover = book[3] if len(book) > 3 else ""
         got = lookup(token, title, author)
         if got is None:
@@ -231,7 +240,7 @@ def main():
         while len(head) < 4:
             head.append("")
         head[3] = cover
-        out.append(pack(head, text, color, kdc))
+        out.append(pack(head, text, color, kdc, spine))
         time.sleep(0.12)
     BOOKS.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {BOOKS} ({found} blurbs, {new_covers} new covers, {new_kdc} new call numbers)")

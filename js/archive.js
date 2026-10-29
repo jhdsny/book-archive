@@ -303,14 +303,21 @@ function extras(b) {
   let contents = "";
   let color = "";
   let kdc = "";
+  let spine = "";
+  let spineRatio = 0;
   for (const part of b.slice(4)) {
     if (typeof part !== "string") continue;
     const text = part.trim();
     if (/^#[0-9a-fA-F]{6}$/.test(text)) color = text.toLowerCase();
     else if (/^kdc:/i.test(text)) kdc = text.slice(4).trim();
-    else if (text && !contents) contents = text;
+    else if (/^spine:/i.test(text)) {
+      const rest = text.slice(6);
+      const at = rest.lastIndexOf("@");
+      spine = at > 0 ? rest.slice(0, at) : rest;
+      spineRatio = at > 0 ? Number(rest.slice(at + 1)) : 0;
+    } else if (text && !contents) contents = text;
   }
-  return { contents, color, kdc };
+  return { contents, color, kdc, spine, spineRatio };
 }
 
 function chunkChars(chars, per) {
@@ -353,14 +360,29 @@ function readableInk(hex) {
 
 function planSpine(book, bayPx) {
   const h = hash(book.title);
-  const design = h % 4;
-  let hPct = 76 + (h % 25);
+  if (book.spine && book.spineRatio > 0) {
+    return {
+      photo: true,
+      hPct: 100,
+      w: Math.max(12, Math.round(bayPx * book.spineRatio)),
+      tilt: 0,
+      gap: 2 + (h % 3),
+      size: 12,
+      titleParts: [],
+      authorSize: 9,
+      authorParts: [],
+      ink: "#241c14",
+      cloth: clothFor(book).bg,
+      panel: "#f4efe4",
+    };
+  }
+  const design = 0;
+  let hPct = 92 + (h % 9);
   const cloth = clothFor(book).bg;
-  const lightPanel = design !== 1;
-  const ink = lightPanel ? "#241c14" : readableInk(cloth);
-  const panel = lightPanel ? lightTint(cloth) : cloth;
-  const reserve = (design === 2 ? 102 : 88) + (classMark(book.call) ? 14 : 0);
-  const room = (pct) => Math.max(64, bayPx * (pct / 100) - reserve);
+  const ink = "#241c14";
+  const panel = lightTint(cloth);
+  const reserve = 16 + (classMark(book.call) ? 14 : 0);
+  const room = (pct) => Math.max(72, bayPx * (pct / 100) - reserve);
   let titleFit = fitText(book.title, room(hPct), 12.5);
   if (titleFit.size < 10.5 && hPct < 100) {
     hPct = 100;
@@ -370,11 +392,8 @@ function planSpine(book, bayPx) {
   const colW = (parts, size) => parts.length * (size + 2);
   let w = 12 + colW(titleFit.parts, titleFit.size) + colW(authorFit.parts, authorFit.size);
   w = Math.round(Math.max(w, 28 + (h % 18)) + 6);
-  const roll = h % 9;
-  let tilt = 0;
-  if (roll === 7) tilt = 4 + (h % 3);
-  else if (roll === 8) tilt = -(4 + ((h >>> 4) % 3));
   return {
+    photo: false,
     design,
     hPct,
     size: titleFit.size,
@@ -382,7 +401,7 @@ function planSpine(book, bayPx) {
     authorSize: authorFit.size,
     authorParts: authorFit.parts,
     w,
-    tilt,
+    tilt: 0,
     gap: 2 + (h % 4),
     ink,
     cloth,
@@ -459,21 +478,10 @@ function addRibbon(btn, title) {
   btn.append(rib);
 }
 
-function coverImg(cls) {
-  const img = document.createElement("img");
-  img.className = cls;
-  img.alt = "";
-  img.draggable = false;
-  img.referrerPolicy = "no-referrer";
-  return img;
-}
-
 function makeSpine(book, plan) {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = `spine design-${plan.design}`;
-  if (!book.cover) btn.classList.add("plain");
-  if (plan.tilt) btn.style.zIndex = "2";
+  btn.className = plan.photo ? "spine photo" : "spine plain";
   btn.dataset.title = book.title;
   btn.style.setProperty("--w", `${plan.w}px`);
   btn.style.setProperty("--h", `${plan.hPct}%`);
@@ -486,68 +494,43 @@ function makeSpine(book, plan) {
   btn.style.setProperty("--cloth", plan.cloth);
   btn.setAttribute("aria-label", ariaText(book));
 
-  const face = document.createElement("span");
-  face.className = "face";
-  const place = (cls) => {
-    if (!book.cover) return null;
-    const img = coverImg(cls);
-    img.src = book.cover;
-    img.addEventListener("error", () => img.remove());
-    face.append(img);
-    return img;
-  };
-
-  if (!book.cover) {
-    const top = document.createElement("span");
-    top.className = "band";
-    face.append(top);
-  } else if (plan.design === 2) {
-    place("banner");
+  if (plan.photo) {
+    const img = document.createElement("img");
+    img.className = "real";
+    img.alt = "";
+    img.draggable = false;
+    img.src = book.spine;
+    btn.append(img);
   } else {
-    place("strip top");
-    if (plan.design !== 1) place("thumb");
-    else place("thumb");
-    if (plan.design === 3) place("edge");
+    const face = document.createElement("span");
+    face.className = "face";
+    const letter = document.createElement("span");
+    letter.className = "letter";
+    const cols = document.createElement("span");
+    cols.className = "cols";
+    for (const part of plan.titleParts) {
+      const col = document.createElement("span");
+      col.className = "col title";
+      col.textContent = part;
+      cols.append(col);
+    }
+    for (const part of plan.authorParts) {
+      const col = document.createElement("span");
+      col.className = "col author";
+      col.textContent = part;
+      cols.append(col);
+    }
+    letter.append(cols);
+    const mark = classMark(book.call);
+    if (mark) {
+      const label = document.createElement("span");
+      label.className = "mark";
+      label.textContent = mark;
+      letter.prepend(label);
+    }
+    face.append(letter);
+    btn.append(face);
   }
-
-  const letter = document.createElement("span");
-  letter.className = "letter";
-  const cols = document.createElement("span");
-  cols.className = "cols";
-  for (const part of plan.titleParts) {
-    const col = document.createElement("span");
-    col.className = "col title";
-    col.textContent = part;
-    cols.append(col);
-  }
-  for (const part of plan.authorParts) {
-    const col = document.createElement("span");
-    col.className = "col author";
-    col.textContent = part;
-    cols.append(col);
-  }
-  letter.append(cols);
-  face.append(letter);
-
-  if (!book.cover) {
-    const plate = document.createElement("span");
-    plate.className = "plate";
-    letter.before(plate);
-    const bot = document.createElement("span");
-    bot.className = "band bot";
-    face.append(bot);
-  } else {
-    place("strip bot");
-  }
-
-  const mark = classMark(book.call);
-  if (mark) {
-    const label = document.createElement("span");
-    label.className = "mark";
-    label.textContent = mark;
-    letter.prepend(label);
-  }
-  btn.append(face);
   const foot = document.createElement("i");
   foot.className = "foot";
   foot.dataset.s = markKey(markStatus(book));
@@ -845,6 +828,8 @@ async function init() {
         contents: extra.contents,
         color: extra.color,
         call: extra.kdc,
+        spine: extra.spine,
+        spineRatio: extra.spineRatio,
         snu: rec.snu || { s: "none" },
         pt: rec.pt || { s: "none" },
       };
