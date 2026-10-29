@@ -26,13 +26,12 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site/css _site/js _site/data _site/assets/spines
+          mkdir -p _site/css _site/js _site/data _site/assets
           cp index.html favicon.svg _site/
           cp css/shop.css _site/css/
           cp js/archive.js _site/js/
           cp data/books.json data/avail.json _site/data/
           cp assets/library_bg.jpg _site/assets/
-          cp assets/spines/* _site/assets/spines/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

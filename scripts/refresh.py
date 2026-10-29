@@ -39,7 +39,6 @@ NL = "https://www.nl.go.kr/NL/contents/search.do"
 
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 KDC_MARK = re.compile(r"^kdc:(.+)$", re.I)
-SPINE_MARK = re.compile(r"^spine:(.+)$", re.I)
 # Dewey numbers the National Library uses for Korean literature, not KDC.
 DDC_KOR_LIT = re.compile(r"^895\.(?:1|7)")
 
@@ -117,38 +116,30 @@ def tail(book):
     contents = ""
     color = ""
     kdc = ""
-    spine = ""
     for part in book[4:]:
         if not isinstance(part, str):
             continue
         text = part.strip()
         marked = KDC_MARK.match(text)
-        marked_spine = SPINE_MARK.match(text)
         if HEX.match(text):
             color = text.lower()
         elif marked:
             kdc = marked.group(1).strip()
-        elif marked_spine:
-            spine = marked_spine.group(1).strip()
         elif text and not contents:
             contents = part
-    return contents, color, kdc, spine
+    return contents, color, kdc
 
 
-def pack(book, contents, color, kdc, spine=None):
+def pack(book, contents, color, kdc):
     head = list(book[:4])
     while len(head) < 4:
         head.append("")
-    if spine is None:
-        spine = tail(book)[3]
-    if contents or color or kdc or spine:
+    if contents or color or kdc:
         head.append(contents or "")
     if color:
         head.append(color)
     if kdc:
         head.append("kdc:" + kdc)
-    if spine:
-        head.append("spine:" + spine)
     return head
 
 

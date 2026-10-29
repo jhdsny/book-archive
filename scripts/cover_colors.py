@@ -136,45 +136,36 @@ def fetch(url):
 
 
 KDC_MARK = re.compile(r"^kdc:(.+)$", re.I)
-SPINE_MARK = re.compile(r"^spine:(.+)$", re.I)
 
 
 def tail(book):
     contents = ""
     color = ""
     kdc = ""
-    spine = ""
     for part in book[4:]:
         if not isinstance(part, str):
             continue
         text = part.strip()
         marked = KDC_MARK.match(text)
-        marked_spine = SPINE_MARK.match(text)
         if HEX.match(text):
             color = text.lower()
         elif marked:
             kdc = marked.group(1).strip()
-        elif marked_spine:
-            spine = marked_spine.group(1).strip()
         elif text and not contents:
             contents = part
-    return contents, color, kdc, spine
+    return contents, color, kdc
 
 
-def pack(head, contents, color, kdc="", spine=None):
+def pack(head, contents, color, kdc=""):
     book = list(head[:4])
     while len(book) < 4:
         book.append("")
-    if spine is None:
-        spine = tail(head)[3]
-    if contents or color or kdc or spine:
+    if contents or color or kdc:
         book.append(contents or "")
     if color:
         book.append(color)
     if kdc:
         book.append("kdc:" + kdc)
-    if spine:
-        book.append("spine:" + spine)
     return book
 
 
@@ -201,7 +192,7 @@ def main():
     missed = 0
     out = []
     for book, rgb in zip(books, found):
-        contents, old, kdc, _spine = tail(book)
+        contents, old, kdc = tail(book)
         if rgb:
             color = hex_of(rgb)
             colored += 1

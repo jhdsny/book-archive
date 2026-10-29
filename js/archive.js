@@ -303,110 +303,62 @@ function extras(b) {
   let contents = "";
   let color = "";
   let kdc = "";
-  let spine = "";
-  let spineRatio = 0;
   for (const part of b.slice(4)) {
     if (typeof part !== "string") continue;
     const text = part.trim();
     if (/^#[0-9a-fA-F]{6}$/.test(text)) color = text.toLowerCase();
     else if (/^kdc:/i.test(text)) kdc = text.slice(4).trim();
-    else if (/^spine:/i.test(text)) {
-      const rest = text.slice(6);
-      const at = rest.lastIndexOf("@");
-      spine = at > 0 ? rest.slice(0, at) : rest;
-      spineRatio = at > 0 ? Number(rest.slice(at + 1)) : 0;
-    } else if (text && !contents) contents = text;
+    else if (text && !contents) contents = text;
   }
-  return { contents, color, kdc, spine, spineRatio };
+  return { contents, color, kdc };
 }
 
-function chunkChars(chars, per) {
-  const cols = Math.max(1, Math.ceil(chars.length / per));
-  const size = Math.ceil(chars.length / cols);
-  const parts = [];
-  for (let i = 0; i < cols; i++) {
-    const piece = chars.slice(i * size, (i + 1) * size).join("");
-    if (piece) parts.push(piece);
+function titlePlan(title, bayPx, labeled) {
+  const chars = Array.from(title);
+  const n = chars.length;
+  const h = hash(title);
+  const pitch = (size) => size * 1.16;
+  const reserve = labeled ? 46 : 30;
+  const usable = (pct) => Math.max(36, bayPx * (pct / 100) - reserve);
+  const fits = (count, size, pct) => count * pitch(size) <= usable(pct);
+  let size = 13;
+  let hPct = 100;
+  let parts = [title];
+  if (n <= 4) {
+    size = 14.5;
+    hPct = 74 + (h % 4) * 5;
+    if (!fits(n, size, hPct)) hPct = 100;
+  } else if (fits(n, 12, 100)) {
+    size = n <= 8 ? 13.5 : 12;
+    hPct = n <= 8 ? 86 + (h % 3) * 4 : 100;
+    if (!fits(n, size, hPct)) hPct = 100;
+    if (!fits(n, size, 100)) size = 11;
+  } else {
+    const mid = Math.round(n / 2);
+    let at = mid;
+    let best = 1e9;
+    for (let i = 2; i < n - 1; i++) {
+      const ch = chars[i];
+      const prev = chars[i - 1];
+      if (ch !== " " && prev !== " " && ch !== ":" && ch !== "：" && ch !== "·") continue;
+      const d = Math.abs(i - mid);
+      if (d < best) { best = d; at = i; }
+    }
+    let a = chars.slice(0, at).join("").trim();
+    let b = chars.slice(at).join("").trim();
+    if (!a || !b) {
+      a = chars.slice(0, mid).join("");
+      b = chars.slice(mid).join("");
+    }
+    parts = [a, b];
+    const longer = Math.max(Array.from(a).length, Array.from(b).length);
+    size = 13;
+    while (size > 8.5 && !fits(longer, size, 100)) size -= 0.5;
   }
-  return parts;
-}
-
-function fitText(text, usable, startSize) {
-  const chars = Array.from(text || "");
-  if (!chars.length) return { size: startSize, parts: [] };
-  const pitch = (size) => size * 1.22;
-  let size = startSize;
-  while (size >= 8) {
-    const per = Math.max(1, Math.floor(usable / pitch(size)));
-    if (Math.ceil(chars.length / per) <= 3) return { size, parts: chunkChars(chars, per) };
-    size -= 0.5;
-  }
-  const per = Math.max(1, Math.floor(usable / pitch(8)));
-  return { size: 8, parts: chunkChars(chars, per) };
-}
-
-function lightTint(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const mix = (c) => Math.round(c * 0.2 + 246 * 0.8);
-  return "#" + [mix((n >> 16) & 255), mix((n >> 8) & 255), mix(n & 255)]
-    .map((c) => c.toString(16).padStart(2, "0")).join("");
-}
-
-function readableInk(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return relLum(rgb) > 0.42 ? "#241c14" : "#f6f1e6";
-}
-
-function planSpine(book, bayPx) {
-  const h = hash(book.title);
-  if (book.spine && book.spineRatio > 0) {
-    return {
-      photo: true,
-      hPct: 100,
-      w: Math.max(12, Math.round(bayPx * book.spineRatio)),
-      tilt: 0,
-      gap: 2 + (h % 3),
-      size: 12,
-      titleParts: [],
-      authorSize: 9,
-      authorParts: [],
-      ink: "#241c14",
-      cloth: clothFor(book).bg,
-      panel: "#f4efe4",
-    };
-  }
-  const design = 0;
-  let hPct = 92 + (h % 9);
-  const cloth = clothFor(book).bg;
-  const ink = "#241c14";
-  const panel = lightTint(cloth);
-  const reserve = 16 + (classMark(book.call) ? 14 : 0);
-  const room = (pct) => Math.max(72, bayPx * (pct / 100) - reserve);
-  let titleFit = fitText(book.title, room(hPct), 12.5);
-  if (titleFit.size < 10.5 && hPct < 100) {
-    hPct = 100;
-    titleFit = fitText(book.title, room(100), 12.5);
-  }
-  const authorFit = fitText(book.author || "", room(hPct), Math.max(8, titleFit.size - 3));
-  const colW = (parts, size) => parts.length * (size + 2);
-  let w = 12 + colW(titleFit.parts, titleFit.size) + colW(authorFit.parts, authorFit.size);
-  w = Math.round(Math.max(w, 28 + (h % 18)) + 6);
-  return {
-    photo: false,
-    design,
-    hPct,
-    size: titleFit.size,
-    titleParts: titleFit.parts,
-    authorSize: authorFit.size,
-    authorParts: authorFit.parts,
-    w,
-    tilt: 0,
-    gap: 2 + (h % 4),
-    ink,
-    cloth,
-    panel,
-  };
+  const w = parts.length === 1
+    ? Math.round(Math.max(30, size + 16 + (h % 5)))
+    : Math.round(size * 2 + 20);
+  return { size, w, hPct, parts };
 }
 
 function ariaText(book) {
@@ -415,14 +367,10 @@ function ariaText(book) {
   return [book.title, book.author, mark, availPhrase({ s: markStatus(book) }), st].filter(Boolean).join(", ");
 }
 
-const plans = new Map();
 function planFor(book, bay) {
-  const key = `${book.title}:${bay}`;
-  let plan = plans.get(key);
-  if (!plan) {
-    plan = planSpine(book, bay);
-    plans.set(key, plan);
-  }
+  const mark = classMark(book.call);
+  const plan = titlePlan(book.title, bay, Boolean(mark));
+  if (mark) plan.w = Math.max(plan.w, Math.ceil(mark.length * 5.4 + 8));
   return plan;
 }
 
@@ -447,26 +395,52 @@ function bayHeight() {
 function layout(list, maxW) {
   const shelves = [];
   let i = 0;
+  let n = 0;
   const bay = bayHeight();
   while (i < list.length) {
     const items = [];
     let used = 0;
+    const wantStack = n % 2 === 1 && list.length - i >= 5;
+    const stackW = Math.round(Math.max(128, Math.min(180, maxW * 0.36)));
+    const budget = Math.max(40, maxW - (wantStack ? stackW + 8 : 0));
     while (i < list.length) {
       const plan = planFor(list[i], bay);
-      const add = plan.w + plan.gap;
-      if (items.length && used + add > maxW) break;
-      items.push({ book: list[i], plan });
+      const add = plan.w + metrics(list[i]).gap;
+      if (items.length && used + add > budget) break;
+      if (wantStack && list.length - i <= 3 && items.length) break;
+      items.push({ type: "book", book: list[i], plan });
       used += add;
       i += 1;
+      if (items.length >= 16) break;
     }
-    if (!items.length && i < list.length) {
-      items.push({ book: list[i], plan: planFor(list[i], bay) });
+    let stack = null;
+    if (wantStack && list.length - i >= 3) {
+      stack = { type: "stack", books: list.slice(i, i + 3), w: stackW };
+      i += 3;
+    }
+    const row = [];
+    if (stack && n % 4 === 1) row.push(stack);
+    row.push(...items);
+    if (stack && n % 4 !== 1) row.push(stack);
+    if (!row.length && i < list.length) {
+      row.push({ type: "book", book: list[i], plan: planFor(list[i], bay) });
       i += 1;
     }
-    if (!items.length) break;
-    shelves.push(items);
+    if (!row.length) break;
+    shelves.push(row);
+    n += 1;
   }
   return shelves;
+}
+
+function thicknesses(group, bay) {
+  const raw = group.map((b) => 34 + (hash(b.title + "flat") % 5) * 3);
+  const gaps = (group.length - 1) * 4;
+  const sum = raw.reduce((a, b) => a + b, 0);
+  const limit = bay - 12;
+  if (sum + gaps <= limit) return raw;
+  const scale = (limit - gaps) / sum;
+  return raw.map((n) => Math.max(28, Math.floor(n * scale)));
 }
 
 function addRibbon(btn, title) {
@@ -479,64 +453,78 @@ function addRibbon(btn, title) {
 }
 
 function makeSpine(book, plan) {
+  const m = metrics(book);
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = plan.photo ? "spine photo" : "spine plain";
+  btn.className = "spine";
   btn.dataset.title = book.title;
   btn.style.setProperty("--w", `${plan.w}px`);
   btn.style.setProperty("--h", `${plan.hPct}%`);
-  btn.style.setProperty("--tilt", `${plan.tilt}deg`);
-  btn.style.setProperty("--gap", `${plan.gap}px`);
+  btn.style.setProperty("--tilt", `${m.tilt}deg`);
+  btn.style.setProperty("--gap", `${m.gap}px`);
   btn.style.setProperty("--fs", `${plan.size}px`);
-  btn.style.setProperty("--afs", `${plan.authorSize}px`);
-  btn.style.setProperty("--ink", plan.ink);
-  btn.style.setProperty("--panel", plan.panel);
-  btn.style.setProperty("--cloth", plan.cloth);
+  paintCloth(btn, clothFor(book));
   btn.setAttribute("aria-label", ariaText(book));
+  const title = document.createElement("span");
+  title.className = "title";
+  for (const part of plan.parts) {
+    const col = document.createElement("span");
+    col.textContent = part;
+    title.append(col);
+  }
+  const foot = document.createElement("i");
+  foot.className = "foot";
+  foot.dataset.s = markKey(markStatus(book));
+  btn.append(title);
+  const mark = classMark(book.call);
+  if (mark) {
+    btn.classList.add("has-call");
+    const label = document.createElement("span");
+    label.className = "mark";
+    label.textContent = mark;
+    btn.append(label);
+  }
+  btn.append(foot);
+  addRibbon(btn, book.title);
+  return btn;
+}
 
-  if (plan.photo) {
-    const img = document.createElement("img");
-    img.className = "real";
-    img.alt = "";
-    img.draggable = false;
-    img.src = book.spine;
-    btn.append(img);
-  } else {
-    const face = document.createElement("span");
-    face.className = "face";
-    const letter = document.createElement("span");
-    letter.className = "letter";
-    const cols = document.createElement("span");
-    cols.className = "cols";
-    for (const part of plan.titleParts) {
-      const col = document.createElement("span");
-      col.className = "col title";
-      col.textContent = part;
-      cols.append(col);
-    }
-    for (const part of plan.authorParts) {
-      const col = document.createElement("span");
-      col.className = "col author";
-      col.textContent = part;
-      cols.append(col);
-    }
-    letter.append(cols);
+function makeStack(group, stackW, bay) {
+  const wrap = document.createElement("div");
+  wrap.className = "stack";
+  wrap.style.setProperty("--sw", `${stackW}px`);
+  const thick = thicknesses(group, bay);
+  group.forEach((book, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "flat";
+    btn.dataset.title = book.title;
+    btn.style.minHeight = `${thick[idx]}px`;
+    btn.style.height = "auto";
+    paintCloth(btn, clothFor(book));
+    btn.setAttribute("aria-label", ariaText(book));
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = book.title;
+    const foot = document.createElement("i");
+    foot.className = "foot";
+    foot.dataset.s = markKey(markStatus(book));
+    const pages = document.createElement("i");
+    pages.className = "pages";
+    pages.setAttribute("aria-hidden", "true");
+    btn.append(name);
     const mark = classMark(book.call);
     if (mark) {
       const label = document.createElement("span");
       label.className = "mark";
       label.textContent = mark;
-      letter.prepend(label);
+      btn.append(label);
     }
-    face.append(letter);
-    btn.append(face);
-  }
-  const foot = document.createElement("i");
-  foot.className = "foot";
-  foot.dataset.s = markKey(markStatus(book));
-  btn.append(foot);
-  addRibbon(btn, book.title);
-  return btn;
+    btn.append(foot, pages);
+    addRibbon(btn, book.title);
+    wrap.append(btn);
+  });
+  return wrap;
 }
 
 function emptyShelf(message) {
@@ -546,7 +534,7 @@ function emptyShelf(message) {
   bay.className = "bay empty";
   const note = document.createElement("p");
   note.className = "empty-note";
-  note.textContent = message;
+  note.textContent = message || "해당하는 책이 없습니다";
   bay.append(note);
   const plank = document.createElement("div");
   plank.className = "plank";
@@ -579,7 +567,7 @@ function renderShelves() {
       const bayEl = document.createElement("div");
       bayEl.className = "bay";
       for (const item of row) {
-        bayEl.append(makeSpine(item.book, item.plan));
+        bayEl.append(item.type === "stack" ? makeStack(item.books, item.w, bay) : makeSpine(item.book, item.plan));
       }
       const plank = document.createElement("div");
       plank.className = "plank";
@@ -659,6 +647,16 @@ function paintCycle(status) {
   cycleEl.querySelectorAll("span").forEach((s) => s.classList.toggle("on", s.dataset.v === status));
   const name = STATUS_LABEL[status] || "표시 없음";
   cycleEl.setAttribute("aria-label", `독서 상태, ${name}. 눌러서 바꿉니다.`);
+}
+
+function refreshMarks(book) {
+  const label = ariaText(book);
+  document.querySelectorAll("button[data-title]").forEach((btn) => {
+    if (btn.dataset.title !== book.title) return;
+    btn.setAttribute("aria-label", label);
+    btn.querySelector(".ribbon")?.remove();
+    addRibbon(btn, book.title);
+  });
 }
 
 function closeDetail() {
@@ -828,8 +826,6 @@ async function init() {
         contents: extra.contents,
         color: extra.color,
         call: extra.kdc,
-        spine: extra.spine,
-        spineRatio: extra.spineRatio,
         snu: rec.snu || { s: "none" },
         pt: rec.pt || { s: "none" },
       };
