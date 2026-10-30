@@ -32,6 +32,8 @@ jobs:
           cp js/archive.js _site/js/
           cp data/books.json data/avail.json _site/data/
           cp assets/library_bg.jpg _site/assets/
+          mkdir -p _site/assets/textures
+          cp assets/textures/*.webp _site/assets/textures/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
