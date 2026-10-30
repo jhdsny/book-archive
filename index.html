@@ -40,6 +40,7 @@
         </svg>
         <input id="q" type="search" placeholder="제목이나 저자" autocomplete="off" enterkeyhint="search">
       </label>
+      <button type="button" class="add-book" id="add-open">책 추가</button>
       <div class="cats" id="classes" role="toolbar" aria-label="한국십진분류"></div>
       <div class="tool-row">
         <div class="seg sorts" role="radiogroup" aria-label="정렬">
@@ -94,6 +95,34 @@
             <button type="button" class="remove" id="remove">삭제</button>
           </div>
         </div>
+      </article>
+    </div>
+  </dialog>
+
+  <dialog id="adder">
+    <div class="sheet">
+      <article class="card">
+        <div class="card-top">
+          <div class="grab" aria-hidden="true"></div>
+          <button type="button" class="close" id="add-close">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6.5 18 18.5M18 6.5 6 18.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            닫기
+          </button>
+        </div>
+        <form class="card-body" id="add-form">
+          <p class="add-note">이 브라우저에만 저장됩니다.</p>
+          <label class="add-field">제목
+            <input id="add-title" type="text" required maxlength="80" autocomplete="off" enterkeyhint="search">
+          </label>
+          <label class="add-field">저자
+            <input id="add-author" type="text" maxlength="80" autocomplete="off" enterkeyhint="search">
+          </label>
+          <button type="submit" class="add-go" id="add-go">검색</button>
+          <p class="add-msg" id="add-msg" role="status"></p>
+          <div class="candidates" id="add-results"></div>
+        </form>
       </article>
     </div>
   </dialog>

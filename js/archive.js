@@ -1,5 +1,6 @@
 const STATUS_KEY = "book-archive-status";
 const DELETE_KEY = "book-archive-deleted";
+const ADDED_KEY = "book-archive-added";
 const ORDER = ["", "want", "maybe", "read"];
 const STATUS_LABEL = { want: "읽고 싶음", maybe: "후보", read: "읽음" };
 
@@ -39,6 +40,12 @@ const readsEl = document.getElementById("reads");
 const deletedEl = document.getElementById("deleted");
 const removeEl = document.getElementById("remove");
 const dialog = document.getElementById("detail");
+const addDialog = document.getElementById("adder");
+const addForm = document.getElementById("add-form");
+const addTitleEl = document.getElementById("add-title");
+const addAuthorEl = document.getElementById("add-author");
+const addMsg = document.getElementById("add-msg");
+const addResults = document.getElementById("add-results");
 const coverEl = document.getElementById("cover");
 const cycleEl = document.getElementById("cycle");
 
@@ -46,10 +53,13 @@ let books = [];
 let byTitle = new Map();
 let memoryStatus = {};
 let memoryDeleted = {};
+let memoryAdded = [];
+let catalog = [];
 let current = null;
 let laying = false;
 let widthToken = 0;
 let detailState = false;
+let addState = false;
 
 function hash(s) {
   let h = 2166136261;
@@ -113,6 +123,102 @@ function saveDeleted(title, on) {
   else delete all[title];
   memoryDeleted = all;
   try { localStorage.setItem(DELETE_KEY, JSON.stringify(all)); } catch (e) { /* ignore */ }
+}
+
+function loadAdded() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ADDED_KEY) || "[]");
+    if (Array.isArray(parsed)) {
+      return parsed.filter((b) => b && typeof b.title === "string" && b.title.trim());
+    }
+  } catch (e) { /* private mode */ }
+  return memoryAdded;
+}
+
+function saveAdded(list) {
+  memoryAdded = list;
+  try { localStorage.setItem(ADDED_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
+}
+
+function plainText(s) {
+  return (s || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
+function fold(s) {
+  return (s || "").toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
+}
+
+function mergeShelf() {
+  const seen = new Set();
+  const base = [];
+  for (const book of catalog) {
+    if (seen.has(book.title)) continue;
+    seen.add(book.title);
+    base.push(book);
+  }
+  const extra = [];
+  for (const raw of loadAdded()) {
+    const title = raw.title.trim();
+    if (!title || seen.has(title)) continue;
+    seen.add(title);
+    extra.push({
+      i: base.length + extra.length,
+      cat: "N",
+      title,
+      author: raw.author || "",
+      cover: raw.cover || "",
+      contents: raw.contents || "",
+      color: raw.color || "",
+      call: "",
+      snu: { s: "err" },
+      pt: { s: "err" },
+      local: true,
+    });
+  }
+  books = base.concat(extra);
+  byTitle = new Map(books.map((b) => [b.title, b]));
+}
+
+function coverUrl(links) {
+  const raw = (links && (links.thumbnail || links.smallThumbnail)) || "";
+  return raw.replace(/^http:/, "https:").replace("&edge=curl", "");
+}
+
+function fromVolume(item) {
+  const info = item.volumeInfo || {};
+  const title = (info.title || "").trim();
+  if (!title) return null;
+  return {
+    title,
+    author: (info.authors || []).join("·"),
+    cover: coverUrl(info.imageLinks),
+    contents: plainText(info.description || ""),
+  };
+}
+
+async function searchVolumes(title, author) {
+  const q = [title, author].filter(Boolean).join(" ");
+  const url = "https://www.googleapis.com/books/v1/volumes?" + new URLSearchParams({
+    q,
+    maxResults: "6",
+    printType: "books",
+  });
+  const res = await fetch(url);
+  if (res.status === 429) {
+    const err = new Error("quota");
+    err.code = "quota";
+    throw err;
+  }
+  if (!res.ok) throw new Error("search");
+  const data = await res.json();
+  const want = fold(title);
+  const hits = (data.items || []).map(fromVolume).filter(Boolean);
+  hits.sort((a, b) => {
+    const as = fold(a.title) === want ? 0 : (fold(a.title).includes(want) ? 1 : 2);
+    const bs = fold(b.title) === want ? 0 : (fold(b.title).includes(want) ? 1 : 2);
+    return as - bs;
+  });
+  return hits;
 }
 
 function nextStatus(cur) {
@@ -833,11 +939,16 @@ function wire() {
     detailState = false;
     history.back();
   });
-  window.addEventListener("popstate", () => {
-    if (!dialog.open) return;
-    detailState = false;
-    dialog.close();
-  });
+window.addEventListener("popstate", () => {
+  if (addDialog.open) {
+    addState = false;
+    addDialog.close();
+    return;
+  }
+  if (!dialog.open) return;
+  detailState = false;
+  dialog.close();
+});
   const cardTop = dialog.querySelector(".card-top");
   let swipeY = null;
   cardTop.addEventListener("pointerdown", (e) => {
@@ -851,6 +962,39 @@ function wire() {
     if (dy > 56) closeDetail();
   });
   cardTop.addEventListener("pointercancel", () => { swipeY = null; });
+  document.getElementById("add-open").addEventListener("click", openAdd);
+  document.getElementById("add-close").addEventListener("click", closeAdd);
+  addDialog.addEventListener("click", (e) => {
+    if (e.target === addDialog || e.target.classList.contains("sheet")) closeAdd();
+  });
+  addDialog.addEventListener("close", () => {
+    if (!addState) return;
+    addState = false;
+    history.back();
+  });
+  const addTop = addDialog.querySelector(".card-top");
+  let addSwipe = null;
+  addTop.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".close")) return;
+    addSwipe = e.clientY;
+  });
+  addTop.addEventListener("pointerup", (e) => {
+    if (addSwipe == null) return;
+    const dy = e.clientY - addSwipe;
+    addSwipe = null;
+    if (dy > 56) closeAdd();
+  });
+  addTop.addEventListener("pointercancel", () => { addSwipe = null; });
+  addForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    runSearch();
+  });
+  addResults.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-pick]");
+    if (!btn) return;
+    const hit = searchHits[Number(btn.dataset.pick)];
+    if (hit) addPicked(hit);
+  });
   cycleEl.addEventListener("click", (e) => {
     if (!current) return;
     const span = e.target.closest("[data-v]");
@@ -860,6 +1004,105 @@ function wire() {
     paintCycle(next);
     renderShelves();
   });
+}
+
+let searchHits = [];
+
+function closeAdd() {
+  if (addDialog.open) addDialog.close();
+}
+
+function openAdd() {
+  if (dialog.open) closeDetail();
+  addMsg.textContent = "";
+  if (!addDialog.open) {
+    history.pushState({ modal: "add" }, "");
+    addState = true;
+    addDialog.showModal();
+  }
+  addDialog.querySelector(".card-body").scrollTop = 0;
+  addTitleEl.focus();
+}
+
+function showCandidates(hits) {
+  searchHits = hits;
+  addResults.replaceChildren();
+  for (const [i, hit] of hits.entries()) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "candidate";
+    btn.dataset.pick = String(i);
+    if (hit.cover) {
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = hit.cover;
+      img.referrerPolicy = "no-referrer";
+      btn.append(img);
+    } else {
+      const ph = document.createElement("span");
+      ph.className = "ph";
+      btn.append(ph);
+    }
+    const text = document.createElement("span");
+    const title = document.createElement("span");
+    title.className = "ct";
+    title.textContent = hit.title;
+    text.append(title);
+    if (hit.author) {
+      const author = document.createElement("span");
+      author.className = "ca";
+      author.textContent = hit.author;
+      text.append(author);
+    }
+    btn.append(text);
+    addResults.append(btn);
+  }
+}
+
+async function runSearch() {
+  const title = addTitleEl.value.trim();
+  const author = addAuthorEl.value.trim();
+  addResults.replaceChildren();
+  searchHits = [];
+  if (!title) {
+    addMsg.textContent = "제목을 입력해 주세요";
+    return;
+  }
+  addMsg.textContent = "찾는 중";
+  try {
+    const hits = await searchVolumes(title, author);
+    if (!hits.length) {
+      addMsg.textContent = "해당하는 책이 없습니다";
+      return;
+    }
+    addMsg.textContent = "";
+    showCandidates(hits);
+  } catch (e) {
+    addMsg.textContent = e && e.code === "quota"
+      ? "지금 검색이 막혀 있습니다. 잠시 뒤에 다시 눌러 주세요."
+      : "검색하지 못했습니다";
+  }
+}
+
+function addPicked(hit) {
+  if (byTitle.has(hit.title)) {
+    addMsg.textContent = "이미 서가에 있는 책입니다";
+    return;
+  }
+  const list = loadAdded().filter((b) => b.title !== hit.title);
+  list.push({
+    title: hit.title,
+    author: hit.author,
+    cover: hit.cover,
+    contents: hit.contents,
+    color: "",
+  });
+  saveAdded(list);
+  saveDeleted(hit.title, false);
+  mergeShelf();
+  mountClasses();
+  renderShelves();
+  closeAdd();
 }
 
 function showNote(text) {
@@ -879,7 +1122,7 @@ async function init() {
     ]);
     const rows = Array.isArray(avail.r) ? avail.r : [];
     const map = new Map(rows.map((r) => [r.t, r]));
-    books = rawBooks.map((b, i) => {
+    catalog = rawBooks.map((b, i) => {
       const rec = rows[i] && rows[i].t === b[1] ? rows[i] : (map.get(b[1]) || {});
       const extra = extras(b);
       return {
@@ -895,7 +1138,7 @@ async function init() {
         pt: rec.pt || { s: "none" },
       };
     });
-    byTitle = new Map(books.map((b) => [b.title, b]));
+    mergeShelf();
     mountClasses();
     renderShelves();
     const ro = new ResizeObserver(() => {

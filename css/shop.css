@@ -156,6 +156,21 @@ button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-colo
 .search input::placeholder { color: #8d7d68; }
 .search input:focus { outline: none; }
 
+.add-book {
+  margin: 14px 0 0 8px;
+  min-height: 44px;
+  padding: 4px 14px 2px;
+  border: 1px solid #cbb89a;
+  background-color: #f6efe4;
+  background-image: var(--fiber);
+  background-blend-mode: multiply;
+  font-family: var(--hand);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #243044;
+  transform: rotate(-1.2deg);
+}
+
 .cats {
   display: flex;
   flex-wrap: wrap;
@@ -698,6 +713,82 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
   overflow: hidden;
 }
 
+.add-note {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: .9rem;
+}
+
+.add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  color: var(--ink-soft);
+  font-size: .86rem;
+}
+
+.add-field input {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 1px solid #243044;
+  background: transparent;
+  padding: 6px 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.add-go {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #1d5c58;
+  background: #e5f0ea;
+  color: #1d5c58;
+  font-size: 1rem;
+}
+
+.add-msg {
+  min-height: 1.4em;
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+}
+
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.candidate {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 72px;
+  padding: 8px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+}
+
+.candidate img,
+.candidate .ph {
+  width: 48px;
+  height: 68px;
+  object-fit: cover;
+  background: #e7dcc8;
+}
+
+.candidate .ct,
+.candidate .ca {
+  display: block;
+}
+
+.candidate .ct { font-weight: 700; line-height: 1.35; }
+.candidate .ca { margin-top: 2px; color: var(--ink-soft); font-size: .9rem; }
+
 .remove {
   min-width: 64px;
   min-height: 48px;
@@ -804,6 +895,10 @@ dialog::backdrop { background: rgba(10, 22, 34, .62); }
     column-gap: 22px;
     align-items: start;
     padding: 0 22px 18px;
+  }
+  form.card-body {
+    display: block;
+    max-width: 420px;
   }
   .cover-wrap {
     grid-column: 1;
