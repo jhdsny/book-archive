@@ -25,29 +25,47 @@
       <span class="burst" aria-hidden="true"></span>
     </header>
 
-    <div class="toolbar">
-      <label class="search">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="11" cy="11" r="6.25" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <path d="M16 16.2 20 20.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-        <input id="q" type="search" placeholder="제목이나 저자" autocomplete="off" enterkeyhint="search">
-      </label>
-      <button type="button" class="add-book" id="add-open">책 추가</button>
-      <div class="cats" id="classes" role="toolbar" aria-label="한국십진분류"></div>
-      <div class="tool-row">
-        <div class="seg sorts" role="radiogroup" aria-label="정렬">
-          <button type="button" role="radio" data-sort="call" aria-checked="true">청구기호</button>
-          <button type="button" role="radio" data-sort="loan" aria-checked="false">대출</button>
+    <div class="toolbar" id="toolbar">
+      <div class="bar" id="bar">
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.25" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M16 16.2 20 20.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <input id="q" type="search" placeholder="제목이나 저자" autocomplete="off" enterkeyhint="search">
+        </label>
+        <button type="button" class="filter-toggle" id="filter-open" aria-expanded="false" aria-controls="filters">필터<span class="filter-count" id="filter-count" hidden aria-hidden="true"></span></button>
+        <button type="button" class="add-book" id="add-open"><svg class="add-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="add-word">책 추가</span></button>
+      </div>
+      <div class="filter-veil" id="filter-veil"></div>
+      <div class="filters" id="filters" aria-labelledby="filter-title">
+        <div class="filters-head">
+          <span class="grab" aria-hidden="true"></span>
+          <p class="filters-title" id="filter-title">필터</p>
+          <button type="button" class="close" id="filter-close">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6.5 18 18.5M18 6.5 6 18.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            닫기
+          </button>
         </div>
-        <div class="seg libs" role="radiogroup" aria-label="도서관">
-          <button type="button" role="radio" data-lib="snu" aria-checked="false">서울대</button>
-          <button type="button" role="radio" data-lib="pt" aria-checked="false">배다리</button>
-          <button type="button" role="radio" data-lib="both" aria-checked="true">둘 다</button>
+        <div class="filters-body">
+          <div class="cats" id="classes" role="toolbar" aria-label="한국십진분류"></div>
+          <div class="tool-row">
+            <div class="seg sorts" role="radiogroup" aria-label="정렬">
+              <button type="button" role="radio" data-sort="call" aria-checked="true">청구기호</button>
+              <button type="button" role="radio" data-sort="loan" aria-checked="false">대출</button>
+            </div>
+            <div class="seg libs" role="radiogroup" aria-label="도서관">
+              <button type="button" role="radio" data-lib="snu" aria-checked="false">서울대</button>
+              <button type="button" role="radio" data-lib="pt" aria-checked="false">배다리</button>
+              <button type="button" role="radio" data-lib="both" aria-checked="true">둘 다</button>
+            </div>
+            <button type="button" class="stamp" id="only" aria-pressed="false">대출가능만</button>
+            <button type="button" class="stamp read-stamp" id="reads" aria-pressed="false">읽은 책</button>
+            <button type="button" class="stamp gone-stamp" id="deleted" aria-pressed="false">삭제한 책</button>
+          </div>
         </div>
-        <button type="button" class="stamp" id="only" aria-pressed="false">대출가능만</button>
-        <button type="button" class="stamp read-stamp" id="reads" aria-pressed="false">읽은 책</button>
-        <button type="button" class="stamp gone-stamp" id="deleted" aria-pressed="false">삭제한 책</button>
       </div>
     </div>
 

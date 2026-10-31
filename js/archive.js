@@ -38,6 +38,13 @@ const qEl = document.getElementById("q");
 const onlyEl = document.getElementById("only");
 const readsEl = document.getElementById("reads");
 const deletedEl = document.getElementById("deleted");
+const barEl = document.getElementById("bar");
+const filtersEl = document.getElementById("filters");
+const filterOpenEl = document.getElementById("filter-open");
+const filterCloseEl = document.getElementById("filter-close");
+const filterCountEl = document.getElementById("filter-count");
+const filterVeilEl = document.getElementById("filter-veil");
+const mobileMq = window.matchMedia("(max-width: 640px)");
 const removeEl = document.getElementById("remove");
 const dialog = document.getElementById("detail");
 const addDialog = document.getElementById("adder");
@@ -683,7 +690,26 @@ function emptyShelf(message) {
   return section;
 }
 
+function activeFilterCount() {
+  let n = 0;
+  if (currentClass() !== "all") n += 1;
+  if (currentLib() !== "both") n += 1;
+  if (onlyEl.getAttribute("aria-pressed") === "true") n += 1;
+  if (readsEl.getAttribute("aria-pressed") === "true") n += 1;
+  if (deletedEl.getAttribute("aria-pressed") === "true") n += 1;
+  return n;
+}
+
+function paintFilterCount() {
+  const n = activeFilterCount();
+  filterCountEl.textContent = n ? String(n) : "";
+  filterCountEl.hidden = n === 0;
+  filterOpenEl.dataset.count = String(n);
+  filterOpenEl.setAttribute("aria-label", n ? `필터, ${n}개 적용 중` : "필터");
+}
+
 function renderShelves() {
+  paintFilterCount();
   if (laying || !books.length) return;
   laying = true;
   try {
@@ -874,7 +900,141 @@ function mountClasses() {
   bindPressed(box);
 }
 
+let scrollLock = null;
+let ignoreScroll = false;
+
+function setBehind(inert) {
+  document.querySelector(".mast").inert = inert;
+  document.querySelector(".case").inert = inert;
+}
+
+function lockPage(on) {
+  ignoreScroll = true;
+  if (on) {
+    if (scrollLock == null) {
+      scrollLock = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollLock}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+    }
+  } else if (scrollLock != null) {
+    const y = scrollLock;
+    scrollLock = null;
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    window.scrollTo(0, y);
+  }
+  setTimeout(() => { ignoreScroll = false; }, 80);
+}
+
+function measureBar() {
+  if (!mobileMq.matches) return;
+  document.documentElement.style.setProperty("--bar-h", `${barEl.offsetHeight}px`);
+}
+
+function setFilters(open) {
+  const want = Boolean(open) && mobileMq.matches;
+  const wasOpen = document.body.classList.contains("filters-open");
+  if (want) {
+    measureBar();
+    barEl.style.top = "0px";
+    barEl.classList.remove("is-away");
+    filtersEl.removeAttribute("inert");
+    filtersEl.setAttribute("aria-hidden", "false");
+    filtersEl.setAttribute("role", "dialog");
+    filtersEl.setAttribute("aria-modal", "true");
+    document.body.classList.add("filters-open");
+    filterOpenEl.setAttribute("aria-expanded", "true");
+    setBehind(true);
+    lockPage(true);
+    filterCloseEl.focus({ preventScroll: true });
+    return;
+  }
+  if (wasOpen && document.activeElement !== document.getElementById("add-open")) {
+    filterOpenEl.focus({ preventScroll: true });
+  }
+  document.body.classList.remove("filters-open");
+  filterOpenEl.setAttribute("aria-expanded", "false");
+  setBehind(false);
+  lockPage(false);
+  filtersEl.removeAttribute("role");
+  filtersEl.removeAttribute("aria-modal");
+  if (mobileMq.matches) {
+    filtersEl.setAttribute("inert", "");
+    filtersEl.setAttribute("aria-hidden", "true");
+  } else {
+    filtersEl.removeAttribute("inert");
+    filtersEl.removeAttribute("aria-hidden");
+    barEl.style.top = "";
+    barEl.classList.remove("is-away");
+  }
+}
+
+function wireBarScroll() {
+  let last = window.scrollY;
+  window.addEventListener("scroll", () => {
+    if (ignoreScroll) return;
+    const y = window.scrollY;
+    const dy = y - last;
+    last = y;
+    if (!mobileMq.matches || document.body.classList.contains("filters-open")) return;
+    if (document.activeElement === qEl || y < 16) {
+      barEl.style.top = "0px";
+      barEl.classList.remove("is-away");
+      return;
+    }
+    if (dy > 8) {
+      barEl.style.top = `${-(barEl.offsetHeight + 8)}px`;
+      barEl.classList.add("is-away");
+    } else if (dy < -8) {
+      barEl.style.top = "0px";
+      barEl.classList.remove("is-away");
+    }
+  }, { passive: true });
+}
+
+function wireFilters() {
+  if (mobileMq.matches) {
+    filtersEl.setAttribute("inert", "");
+    filtersEl.setAttribute("aria-hidden", "true");
+  }
+  measureBar();
+  filterOpenEl.addEventListener("click", () => {
+    setFilters(!document.body.classList.contains("filters-open"));
+  });
+  filterCloseEl.addEventListener("click", () => setFilters(false));
+  filterVeilEl.addEventListener("click", () => setFilters(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (dialog.open || addDialog.open) return;
+    if (!document.body.classList.contains("filters-open")) return;
+    setFilters(false);
+  });
+  mobileMq.addEventListener("change", () => setFilters(false));
+  window.addEventListener("resize", measureBar);
+  let swipeY = null;
+  const head = filtersEl.querySelector(".filters-head");
+  head.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".close")) return;
+    swipeY = e.clientY;
+  });
+  head.addEventListener("pointerup", (e) => {
+    if (swipeY == null) return;
+    const dy = e.clientY - swipeY;
+    swipeY = null;
+    if (dy > 56) setFilters(false);
+  });
+  head.addEventListener("pointercancel", () => { swipeY = null; });
+  wireBarScroll();
+}
+
 function wire() {
+  wireFilters();
   document.querySelectorAll(".seg").forEach((group) => {
     const buttons = [...group.querySelectorAll("button")];
     buttons.forEach((btn) => {
@@ -962,7 +1122,10 @@ window.addEventListener("popstate", () => {
     if (dy > 56) closeDetail();
   });
   cardTop.addEventListener("pointercancel", () => { swipeY = null; });
-  document.getElementById("add-open").addEventListener("click", openAdd);
+  document.getElementById("add-open").addEventListener("click", () => {
+    setFilters(false);
+    openAdd();
+  });
   document.getElementById("add-close").addEventListener("click", closeAdd);
   addDialog.addEventListener("click", (e) => {
     if (e.target === addDialog || e.target.classList.contains("sheet")) closeAdd();
