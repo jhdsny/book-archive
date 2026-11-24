@@ -435,6 +435,14 @@ def one(book, prev, skip_pt=False):
     author = author or ""
     old = prev.get(title, {})
     snu_status, docs = fetch_snu(title, author)
+    # A trailing volume number is part of the search title, so "울프홀 1" misses
+    # the unnumbered catalog record. Keep a holding already checked for that row.
+    if (
+        snu_status.get("s") == "none"
+        and re.search(r"\s\d{1,2}$", core(title))
+        and (old.get("snu") or {}).get("s") in ("avail", "out")
+    ):
+        snu_status = old["snu"]
     if skip_pt:
         pt_status, pt_call = {"s": "err"}, ""
     else:
